@@ -80,9 +80,9 @@ jobs:
       - name: Setup KernelSU-Next (Kprobes)
         working-directory: gki/common
         run: |
-          echo "🧩 Menambahkan KernelSU-Next dengan Kprobes Hook"
-          curl -LSs https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/dev/kernel/setup.sh | bash -
-          echo "✅ KernelSU-Next added"
+          echo "Menambahkan KernelSU-Next dengan Kprobes Hook"
+          curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh | bash -s dev
+          echo "KernelSU-Next added"
 
       - name: Apply common fixes
         working-directory: gki/common
