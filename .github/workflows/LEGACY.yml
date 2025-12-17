@@ -193,13 +193,11 @@ jobs:
       - name: Apply Kingfinik98 Manual Hook Patch (Robust)
         working-directory: gki
         run: |
-          echo "🩹 Menerapkan patch manual hook v1.4 dengan metode yang lebih andal..."
+          echo "🩹 Menerapkan patch manual hook v1.5 dengan metode yang lebih andal..."
           # Apply fixed manual hook patch cleanly
           echo "Applying cleaned manual hook patch..."
-          curl -s https://raw.githubusercontent.com/GotenAjje/gki-builder/refs/heads/main/manual-hook-v1.5.patch \
-  | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
+          curl -s https://raw.githubusercontent.com/GotenAjje/gki-builder/refs/heads/main/manual-hook-v1.5.patch | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
           echo "✅ Manual hook patch applied successfully"
-
 
       - name: Set version
         working-directory: gki/common
