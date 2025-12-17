@@ -38,8 +38,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --global user.name "kaminari"
-          git config --global user.email "itawanri14@gmail.com"
+          git config --global user.name "titit"
+          git config --global user.email "Kingfinik98@gmail.com"
 
       - name: Install build tools
         run: |
@@ -194,29 +194,12 @@ jobs:
         working-directory: gki
         run: |
           echo "🩹 Menerapkan patch manual hook v1.4 dengan metode yang lebih andal..."
-          PATCH_URL="https://raw.githubusercontent.com/Kingfinik98/kernel_patches/refs/heads/main/syscall_hook/min_scope_syscall_hooks_v1.4.patch"
-          PATCH_FILE="manual_hook_v1.4.patch"
-          
-          # Download the patch
-          curl -s -o $PATCH_FILE $PATCH_URL
-          
-          # Try to apply with git am first, then fallback to patch with fuzz
-          if git am -3 < $PATCH_FILE; then
-            echo "✅ Patch applied successfully with git am."
-          else
-            echo "⚠️ git am failed. Aborting and trying with patch -p1 --fuzz=3..."
-            git am --abort
-            # The patch is meant for the 'common' directory
-            if patch -p1 --fuzz=3 -d common < $PATCH_FILE; then
-              echo "✅ Patch applied successfully with patch -p1 --fuzz=3."
-            else
-              echo "❌ Patch failed to apply with both methods. Build cannot continue."
-              exit 1
-            fi
-          fi
-          
-          # Clean up the patch file
-          rm -f $PATCH_FILE
+          # Apply fixed manual hook patch cleanly
+          echo "Applying cleaned manual hook patch..."
+          curl -s https://raw.githubusercontent.com/GotenAjje/gki-builder/refs/heads/main/manual-hook-v1.5.patch \
+  | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
+          echo "✅ Manual hook patch applied successfully"
+
 
       - name: Set version
         working-directory: gki/common
