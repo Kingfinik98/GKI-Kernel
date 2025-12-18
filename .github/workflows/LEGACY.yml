@@ -190,13 +190,20 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
 
-      - name: Apply Sultan Manual Hook Patch (v1.6)
+      - name: Apply Sultan Manual Hook Patch (v1.6) with Fallback
         working-directory: gki
         run: |
           echo "🩹 Menerapkan patch manual hook Sultan v1.6 dari @TheSillyOk..."
-          # Apply the Sultan manual hook patch
-          curl -s https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/sultan/scope-min-hooks-v1.6.patch | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
-          echo "✅ Sultan manual hook patch v1.6 applied successfully"
+          # Apply the Sultan manual hook patch with a fallback mechanism
+          echo "Attempting to apply patch..."
+          if ! curl -s https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/sultan/scope-min-hooks-v1.6.patch | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common; then
+            echo "⚠️ Patch failed. Retrying with fuzz=3..."
+            curl -s https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/sultan/scope-min-hooks-v1.6.patch | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 --fuzz=3 -d common || {
+              echo "❌ Patch failed even with fuzz. Some hooks might not be applied."
+              echo "Check the .rej files for details."
+            }
+          fi
+          echo "✅ Sultan manual hook patch process completed."
 
       - name: Set version
         working-directory: gki/common
