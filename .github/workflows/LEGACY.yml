@@ -190,13 +190,13 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
 
-      - name: Apply KernelSU-Next Manual Hook Patch (v1.5)
+      - name: Apply Sultan Manual Hook Patch (v1.6)
         working-directory: gki
         run: |
-          echo "🩹 Menerapkan patch manual hook KernelSU-Next v1.5..."
-          # Apply the official KernelSU-Next manual hook patch
-          curl -s https://raw.githubusercontent.com/KernelSU-Next/kernel_patches/refs/heads/main/syscall_hook/min_scope_syscall_hooks_v1.5.patch | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
-          echo "✅ KernelSU-Next manual hook patch applied successfully"
+          echo "🩹 Menerapkan patch manual hook Sultan v1.6 dari @TheSillyOk..."
+          # Apply the Sultan manual hook patch
+          curl -s https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/sultan/scope-min-hooks-v1.6.patch | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
+          echo "✅ Sultan manual hook patch v1.6 applied successfully"
 
       - name: Set version
         working-directory: gki/common
