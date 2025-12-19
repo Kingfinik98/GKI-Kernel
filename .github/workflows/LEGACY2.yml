@@ -82,7 +82,7 @@ jobs:
         run: |
           echo "🧩 Gabungkan dan tambahkan KernelSU-Next dan SUSFS"
           echo "➡️ Menambahkan KernelSU-Next"
-          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
           echo "✅ KernelSU-Next ditambahkan"
           echo "➡️ Mengkloning susfs4ksu"
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
@@ -94,6 +94,22 @@ jobs:
           cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
           echo "✅ SUSFS dipatch"
+
+      - name: Terapkan SUSFS v2.0.0 (KSUN 3.0.0 dev, GKI 5.10)
+        working-directory: gki/common
+        run: |
+          for p in \
+            fix_ksu.c.patch \
+            fix_ksud.c.patch \
+            fix_sucompat.c.patch \
+            fix_supercalls.c.patch \
+            fix_kernel_umount.c.patch \
+            fix_selinux.c.patch
+          do
+            curl -L "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/$p" -o "$p"
+            patch -p1 < "$p"
+            rm -f "$p"
+          done
 
       - name: Terapkan perbaikan umum
         working-directory: gki/common
@@ -190,16 +206,12 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
 
-      - name: Terapkan scope_min_manual_hooks_v1.6.patch
+      - name: Terapkan Manual Hook v1.6
         working-directory: gki
         run: |
-          echo "🩹 Menerapkan patch scope_min_manual_hooks_v1.6.patch.."
-          cd common
-          curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
-          chmod +x scope_min_manual_hooks_v1.6.patch
-          ./scope_min_manual_hooks_v1.6.patch
-          echo "✅ Script hook scope_min_manual_hooks_v1.6.patch berhasil dijalankan."
-          rm -f scope_min_manual_hooks_v1.6.patch
+          curl -L "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch" -o hook.patch
+          patch -p1 < hook.patch
+          rm -f hook.patch
 
       - name: Atur versi
         working-directory: gki/common
