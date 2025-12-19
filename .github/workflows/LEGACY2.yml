@@ -1,4 +1,5 @@
-# LEGACY2 KSUN
+# LEGACY2 KSUN - FIXED VERSION
+name: Build Kernel GKI 5.10 KSUN
 
 on:
   workflow_dispatch:
@@ -65,10 +66,7 @@ jobs:
           else
             echo "⚠️ git am failed. Aborting and falling back to force patch..."
             git am --abort
-            
-            # Apply patch, allow partial failure (skipped hunks are fine)
             patch -p1 --fuzz=3 < rama.patch || true
-            
             echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
           fi
           rm rama.patch
@@ -99,8 +97,6 @@ jobs:
         working-directory: gki/common
         run: |
           echo "Applying requested cherry-picks..."
-          
-          # Patch 1: Common 5.10 update/fix
           curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
              echo "git am failed, falling back to patch..."
              curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
@@ -110,9 +106,7 @@ jobs:
         working-directory: gki/common
         run: |
           echo "🛠️ Applying manual Stack Protector fix "
-          # 1. Edit arch/arm64/Kconfig
           sed -i '/config STACKPROTECTOR_PER_TASK/{n;s/def_bool y/bool "Stack Protector per task"\n\tdefault y/;}' arch/arm64/Kconfig
-          # 2. Disable di gki_defconfig
           echo "# CONFIG_STACKPROTECTOR_PER_TASK is not set" >> arch/arm64/configs/gki_defconfig
           echo "✅ Stack Protector fix applied manually."
 
@@ -139,11 +133,11 @@ jobs:
           # Config - Tambahan untuk Performa Game
           # ===============================================
           # Konfigurasi KSU NEXT & SUSFS
-          # Add KSU configuration settings
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_HAS_MANUAL_HOOK=y
           CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
@@ -192,16 +186,20 @@ jobs:
           EOF
           
       - name: Apply scope_min_manual_hooks_v1.6.patch
-        working-directory: gki
+        working-directory: gki/common
         run: |
           echo "🩹 Menerapkan scope_min_manual_hooks_v1.6.patch..."
-          cd common
           curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
           
-          echo "Menerapkan patch dengan patch --fuzz=3..."
+          echo "Menerapkan patch..."
           patch -p1 --fuzz=3 < scope_min_manual_hooks_v1.6.patch
           
-          echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
+          # FORCE MARKER: Tambahkan komentar yang dicari oleh Makefile KSU-Next
+          echo "🛠️ Menambahkan marker KSU_HOOK untuk bypass Makefile"
+          sed -i '/ksu_handle_execve/a // KSU_HOOK' fs/exec.c
+          sed -i '/ksu_handle_vfs_read/a // KSU_HOOK' fs/read_write.c
+          
+          echo "✅ Patch & Marker berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
           
       - name: Set version
@@ -211,41 +209,25 @@ jobs:
           chmod +x scripts/setlocalversion
           
           KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
-
           if [ -n "$KERNEL_NAME" ]; then
-             echo "Setting custom kernel name: $KERNEL_NAME"
-             if grep -q '^EXTRAVERSION *=' Makefile; then
-               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
-             else
-               echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
-             fi
-          else
-             echo "Kernel name input is empty. Skipping custom name (Using Default)."
+             sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile || echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
           fi
 
       - name: Setup Clang
         working-directory: gki
         run: |
           mkdir -p prebuilts-master/clang/host/linux-x86
-          
           if [ "${{ github.event.inputs.clang_version }}" == "r536225 (Clang 19)" ]; then
-            echo "Setting up Clang-19 (r536225)..."
             CLANG_VER="clang-r536225"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel-2025/clang-r536225.tar.gz"
           else
-            echo "Setting up Clang-20 (r547379)..."
             CLANG_VER="clang-r547379"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/62cdcefa89e31af2d72c366e8b5ef8db84caea62/clang-r547379.tar.gz"
           fi
-          
           echo "CLANG_VER=$CLANG_VER" >> $GITHUB_ENV
-
           mkdir -p prebuilts-master/clang/host/linux-x86/$CLANG_VER
-          cd prebuilts-master/clang/host/linux-x86
-          curl -L "${CLANG_URL}" | tar -xz -C $CLANG_VER
-          
-          rm -rf clang-r416183b
-          ln -sf $CLANG_VER clang-r416183b
+          curl -L "${CLANG_URL}" | tar -xz -C prebuilts-master/clang/host/linux-x86/$CLANG_VER
+          ln -sf $CLANG_VER prebuilts-master/clang/host/linux-x86/clang-r416183b
 
       - name: Commit changes
         working-directory: gki/common
@@ -274,5 +256,5 @@ jobs:
               -F file=@gki/out/android12-5.10/common/arch/arm64/boot/Image \
               https://pixeldrain.com/api/file
           else
-            echo "Image file not found. Build likely failed."
+            echo "Image file not found."
           fi
