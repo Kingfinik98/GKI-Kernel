@@ -77,36 +77,23 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      # --- BLOK YANG DIGANTI DIMULAI DI SINI ---
-      - name: Setup KernelSU-Next & SUSFS v2.0.0
+      - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
-          echo "🧩 Menambahkan KernelSU-Next"
+          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
+          echo "➡️ Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
           echo "✅ KernelSU-Next added"
-
-          echo "➡️ Clone WildKernels kernel_patches"
-          git clone https://github.com/WildKernels/kernel_patches.git
-
-          echo "✅ Clone selesai"
-
-          PATCH_DIR=kernel_patches/next/susfs_fix_patches/v2.0.0
-
-          echo "🩹 Copy SUSFS source"
-          cp -r $PATCH_DIR/fs ./
-          cp -r $PATCH_DIR/include ./
-
-          echo "🩹 Apply SUSFS patches"
-          for p in $PATCH_DIR/*.patch; do
-            echo "➡️ Applying $(basename $p)"
-            patch -p1 < $p || {
-              echo "❌ Patch gagal: $p"
-              exit 1
-            }
-          done
-
-          echo "✅ SUSFS v2.0.0 berhasil dipatch"
-      # --- BLOK YANG DIGANTI BERAKHIR DI SINI ---
+          echo "➡️ Cloning susfs4ksu"
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
+          echo "✅ SUSFS berhasil diclone"
+          echo "🩹 Patching susfs4ksu"
+          susfs=sus/kernel_patches
+          cp -r $susfs/fs .
+          cp -r $susfs/include .
+          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
+          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
+          echo "✅ SUSFS patched"
 
       - name: Apply common fixes
         working-directory: gki/common
@@ -208,6 +195,7 @@ jobs:
         working-directory: gki
         run: |
           echo "🩹 Menerapkan scope_min_manual_hooks_v1.6.patch..."
+          gki/common
           curl -o syscall_hook_patches.sh https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
           chmod +x scope_min_manual_hooks_v1.6.patch
           ./scope_min_manual_hooks_v1.6.patch
