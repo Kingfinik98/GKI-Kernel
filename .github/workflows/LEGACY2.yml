@@ -197,9 +197,11 @@ jobs:
           echo "🩹 Menerapkan scope_min_manual_hooks_v1.6.patch..."
           cd common
           curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
-          chmod +x scope_min_manual_hooks_v1.6.patch
-          ./scope_min_manual_hooks_v1.6.patch
-          echo "✅ hook script dari scope_min_manual_hooks_v1.6.patch berhasil dijalankan."
+          
+          echo "Menerapkan patch menggunakan git apply..."
+          git apply scope_min_manual_hooks_v1.6.patch
+          
+          echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
           
       - name: Set version
