@@ -77,14 +77,24 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      - name: Setup KernelSU-Next
+      - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
-          echo "🧩 Menambahkan KernelSU-Next"
+          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
           echo "➡️ Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
           echo "✅ KernelSU-Next added"
-          
+          echo "➡️ Cloning susfs4ksu"
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
+          echo "✅ SUSFS berhasil diclone"
+          echo "🩹 Patching susfs4ksu"
+          susfs=sus/kernel_patches
+          cp -r $susfs/fs .
+          cp -r $susfs/include .
+          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
+          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
+          echo "✅ SUSFS patched"
+
       - name: Apply common fixes
         working-directory: gki/common
         run: |
@@ -128,13 +138,32 @@ jobs:
           cat >> $DEFCONFIG <<EOF
           # Config - Tambahan untuk Performa Game
           # ===============================================
-          # Konfigurasi KSU NEXT
+          # Konfigurasi KSU NEXT & SUSFS
           # Add KSU configuration settings
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
+          # Add SUSFS configuration settings
+          CONFIG_KSU_SUSFS=y
+          CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_PATH=y
+          CONFIG_KSU_SUSFS_SUS_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT_SPOOF_GENERIC=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n
+          CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+          CONFIG_KSU_SUSFS_ENABLE_LOG=y
+          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+          CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
           # Add additional tmpfs config setting
           CONFIG_TMPFS_XATTR=y
           CONFIG_TMPFS_POSIX_ACL=y
@@ -174,14 +203,6 @@ jobs:
           
           echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
-
-      # --- PERBAIKAN: Langkah baru untuk mengatasi error "No hooks were defined" ---
-      - name: Create KernelSU hooks indicator file
-        working-directory: gki/common
-        run: |
-          echo "🔧 Membuat file indikator hooks.c untuk KernelSU..."
-          touch drivers/kernelsu/hooks.c
-          echo "✅ File hooks.c berhasil dibuat. Build tidak akan lagi error."
           
       - name: Set version
         working-directory: gki/common
