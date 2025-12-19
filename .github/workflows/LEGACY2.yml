@@ -1,4 +1,4 @@
-# LEGACY2 KSUN
+# LEGACY2 KSUN (VERSI BENAR - MENGGUNAKAN COMMIT PATCH)
 
 on:
   workflow_dispatch:
@@ -77,29 +77,24 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      - name: Setup KernelSU-Next & SUSFS
+      - name: Setup KernelSU-Next
         working-directory: gki/common
         run: |
-          echo "🧩 Gabungkan dan tambahkan KernelSU-Next dan SUSFS"
-          echo "➡️ Menambahkan KernelSU-Next"
+          echo "🧩 Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
           echo "✅ KernelSU-Next ditambahkan"
-      
-      - name: Terapkan SUSFS v2.0.0 (KSUN 3.0.0 dev, GKI 5.10)
+
+      - name: Terapkan SUSFS & Perbaikan v2.0.0
         working-directory: gki/common
         run: |
-          for p in \
-            fix_ksu.c.patch \
-            fix_ksud.c.patch \
-            fix_sucompat.c.patch \
-            fix_supercalls.c.patch \
-            fix_kernel_umount.c.patch \
-            fix_selinux.c.patch
-          do
-            curl -L "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/$p" -o "$p"
-            patch -p1 < "$p"
-            rm -f "$p"
-          done
+          echo "🩹 Menerapkan patch SUSFS v2.0.0 dari commit a64d684f..."
+          # Menggunakan URL .patch untuk menerapkan seluruh commit secara langsung
+          curl -L "https://github.com/WildKernels/kernel_patches/commit/a64d684f9eb5f6add3a057187e4d02e186caf3b6.patch" | git am -3 || {
+            echo "⚠️ git am gagal. Membatalkan dan beralih ke patch paksa..."
+            git am --abort
+            curl -L "https://github.com/WildKernels/kernel_patches/commit/a64d684f9eb5f6add3a057187e4d02e186caf3b6.patch" | patch -p1
+          }
+          echo "✅ Patch SUSFS dari commit diterapkan"
 
       - name: Terapkan perbaikan umum
         working-directory: gki/common
