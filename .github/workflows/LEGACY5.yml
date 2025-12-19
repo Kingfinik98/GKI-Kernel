@@ -218,10 +218,10 @@ jobs:
         working-directory: gki/common
         run: |
           echo "🔧 Menerapkan patch manual hook v1.4..."
-          curl -L "https://raw.githubusercontent.com/GotenAjje/gki-builder/refs/heads/main/manual-hook-v1.4.patch" -o manual_hook.patch
+          curl -L "https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/scope-min-hooks-v1.6.patch" -o scope-min-hooks-v1.6.patch
           patch -p1 < manual_hook.patch
-          echo "✅ Patch manual hook v1.4 berhasil diterapkan."
-          rm -f manual_hook.patch
+          echo "✅ Patch manual scope-min-hooks-v1.6.patch berhasil diterapkan."
+          rm -f scope-min-hooks-v1.6.patch
 
       - name: Setup Clang
         working-directory: gki
