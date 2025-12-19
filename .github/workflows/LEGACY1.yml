@@ -206,7 +206,7 @@ jobs:
         run: |
           echo -e '\nCONFIG_HZ_300=y\nCONFIG_HZ=300' >> gki/common/arch/arm64/configs/gki_defconfig
       
-       - name: Apply JackA1ltman Syscall Hook Script
+      - name: Apply JackA1ltman Syscall Hook Script
         working-directory: gki
         run: |
           echo "🩹 Menerapkan patch hook syscall dari JackA1ltman..."
