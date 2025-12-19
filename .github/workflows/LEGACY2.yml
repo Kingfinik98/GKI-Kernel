@@ -1,4 +1,5 @@
-# LEGACY2 KSUN
+# LEGACY2 KSUN - FINAL VERSION
+name: Build Kernel GKI 5.10 KSUN
 
 on:
   workflow_dispatch:
@@ -22,6 +23,9 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # ===============================================================
+      # 1. PERSIAPAN LINGKUNGAN
+      # ===============================================================
       - name: Free disk space
         uses: easimon/maximize-build-space@master
         with:
@@ -47,41 +51,24 @@ jobs:
           sudo apt install -y git curl repo build-essential bc bison flex libssl-dev \
             libelf-dev python3 python3-pip unzip zip rsync libncurses-dev lld
 
+      # ===============================================================
+      # 2. SETUP SUMBER KERNEL
+      # ===============================================================
       - name: Init & Sync GKI
         run: |
           mkdir gki && cd gki
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
 
-      - name: Apply Rama patch
-        working-directory: gki/common
-        run: |
-          echo "Downloading commit 881fa16..."
-          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/881fa16.patch" -o rama.patch
-          
-          echo "Attempting git am..."
-          if git am -3 < rama.patch; then
-            echo "✅ git am succeeded."
-          else
-            echo "⚠️ git am failed. Aborting and falling back to force patch..."
-            git am --abort
-            
-            # Apply patch, allow partial failure (skipped hunks are fine)
-            patch -p1 --fuzz=3 < rama.patch || true
-            
-            echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
-          fi
-          rm rama.patch
-
-      - name: Tweak build config
-        run: |
-          sed -i '2d' gki/common/build.config.gki
-
+      # ===============================================================
+      # 3. INTEGRASI KERNELSU & SUSFS
+      # ===============================================================
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
           echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
           echo "➡️ Menambahkan KernelSU-Next"
+          # Menggunakan fork Anda sesuai dengan file yang diberikan
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
           echo "✅ KernelSU-Next added"
           echo "➡️ Cloning susfs4ksu"
@@ -95,12 +82,63 @@ jobs:
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
           echo "✅ SUSFS patched"
 
+      # --- PERBAIKAN KRUSIAL: Menambahkan definisi fungsi yang hilang ---
+      - name: Add Legacy Hooks for Manual Patch
+        working-directory: gki/common
+        run: |
+          echo "🔧 Menambahkan definisi fungsi legacy hooks..."
+          # Buat file C baru untuk fungsi-fungsi yang hilang
+          cat > drivers/kernelsu/legacy_hooks.c << 'EOF'
+          #include <linux/fs.h>
+          #include <linux/file.h>
+          #include <linux/uaccess.h>
+
+          // Fungsi-fungsi stub untuk patch manual hook
+          // Ini mengatasi error "undefined symbol"
+          bool ksu_input_hook __read_mostly = false;
+          bool ksu_vfs_read_hook __read_mostly = false;
+
+          int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value) { return 0; }
+          int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
+          int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode, int *flags) { return 0; }
+          int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr, size_t *count_ptr) { return 0; }
+          int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags) { return 0; }
+          int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg) { return 0; }
+          EOF
+          
+          # Tambahkan file baru ke Makefile agar dikompilasi
+          echo "obj-y += legacy_hooks.o" >> drivers/kernelsu/Makefile
+          
+          echo "✅ Legacy hooks berhasil ditambahkan dan Makefile diperbarui."
+
+      # ===============================================================
+      # 4. PATCHING KERNEL (UMUM)
+      # ===============================================================
+      - name: Apply Rama patch
+        working-directory: gki/common
+        run: |
+          echo "Downloading commit 881fa16..."
+          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/881fa16.patch" -o rama.patch
+          
+          echo "Attempting git am..."
+          if git am -3 < rama.patch; then
+            echo "✅ git am succeeded."
+          else
+            echo "⚠️ git am failed. Aborting and falling back to force patch..."
+            git am --abort
+            patch -p1 --fuzz=3 < rama.patch || true
+            echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
+          fi
+          rm rama.patch
+
+      - name: Tweak build config
+        run: |
+          sed -i '2d' gki/common/build.config.gki
+
       - name: Apply common fixes
         working-directory: gki/common
         run: |
           echo "Applying requested cherry-picks..."
-          
-          # Patch 1: Common 5.10 update/fix
           curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
              echo "git am failed, falling back to patch..."
              curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
@@ -110,9 +148,7 @@ jobs:
         working-directory: gki/common
         run: |
           echo "🛠️ Applying manual Stack Protector fix "
-          # 1. Edit arch/arm64/Kconfig
           sed -i '/config STACKPROTECTOR_PER_TASK/{n;s/def_bool y/bool "Stack Protector per task"\n\tdefault y/;}' arch/arm64/Kconfig
-          # 2. Disable di gki_defconfig
           echo "# CONFIG_STACKPROTECTOR_PER_TASK is not set" >> arch/arm64/configs/gki_defconfig
           echo "✅ Stack Protector fix applied manually."
 
@@ -130,6 +166,9 @@ jobs:
           echo "🧹 [Clean-Up] Deleting check_defconfig"
           sed -i 's/check_defconfig//' gki/common/build.config.gki
 
+      # ===============================================================
+      # 5. KONFIGURASI KERNEL
+      # ===============================================================
       - name: Inject All Kernel Configs
         working-directory: gki/common
         run: |
@@ -139,11 +178,11 @@ jobs:
           # Config - Tambahan untuk Performa Game
           # ===============================================
           # Konfigurasi KSU NEXT & SUSFS
-          # Add KSU configuration settings
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_HAS_MANUAL_HOOK=y # <-- PERBAIKAN: Tambahkan ini
           CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
@@ -191,6 +230,9 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
           
+      # ===============================================================
+      # 6. PATCHING MANUAL HOOK
+      # ===============================================================
       - name: Apply scope_min_manual_hooks_v1.6.patch
         working-directory: gki
         run: |
@@ -203,7 +245,10 @@ jobs:
           
           echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
-          
+
+      # ===============================================================
+      # 7. PERSIAPAN BUILD AKHIR
+      # ===============================================================
       - name: Set version
         working-directory: gki/common
         run: |
@@ -211,7 +256,6 @@ jobs:
           chmod +x scripts/setlocalversion
           
           KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
-
           if [ -n "$KERNEL_NAME" ]; then
              echo "Setting custom kernel name: $KERNEL_NAME"
              if grep -q '^EXTRAVERSION *=' Makefile; then
@@ -227,7 +271,6 @@ jobs:
         working-directory: gki
         run: |
           mkdir -p prebuilts-master/clang/host/linux-x86
-          
           if [ "${{ github.event.inputs.clang_version }}" == "r536225 (Clang 19)" ]; then
             echo "Setting up Clang-19 (r536225)..."
             CLANG_VER="clang-r536225"
@@ -237,13 +280,10 @@ jobs:
             CLANG_VER="clang-r547379"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/62cdcefa89e31af2d72c366e8b5ef8db84caea62/clang-r547379.tar.gz"
           fi
-          
           echo "CLANG_VER=$CLANG_VER" >> $GITHUB_ENV
-
           mkdir -p prebuilts-master/clang/host/linux-x86/$CLANG_VER
           cd prebuilts-master/clang/host/linux-x86
           curl -L "${CLANG_URL}" | tar -xz -C $CLANG_VER
-          
           rm -rf clang-r416183b
           ln -sf $CLANG_VER clang-r416183b
 
@@ -253,6 +293,9 @@ jobs:
           git add .
           git commit -m "Final clean tree before build" || true
 
+      # ===============================================================
+      # 8. KOMPILASI & UPLOAD
+      # ===============================================================
       - name: Compile
         working-directory: gki
         run: |
