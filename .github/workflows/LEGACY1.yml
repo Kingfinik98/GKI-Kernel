@@ -1,4 +1,4 @@
-# LEGACY1 KSUN
+name: LEGACY1 KSUN
 
 on:
   workflow_dispatch:
@@ -33,12 +33,9 @@ jobs:
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
       - name: Configure Git
         run: |
-          git config --global user.name "titit"
+          git config --global user.name "Boltx"
           git config --global user.email "Kingfinik98@gmail.com"
 
       - name: Install build tools
@@ -54,22 +51,18 @@ jobs:
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
 
       - name: Apply Rama patch
-        working-directory: gki/common
         run: |
+          cd gki/common
           echo "Downloading commit 881fa16..."
           curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/881fa16.patch" -o rama.patch
           
-          echo "Attempting git am..."
+          echo "Applying patch..."
           if git am -3 < rama.patch; then
-            echo "✅ git am succeeded."
+            echo "Done."
           else
-            echo "⚠️ git am failed. Aborting and falling back to force patch..."
+            echo "git am failed, trying patch -p1..."
             git am --abort
-            
-            # Apply patch, allow partial failure (skipped hunks are fine)
             patch -p1 --fuzz=3 < rama.patch || true
-            
-            echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
           fi
           rm rama.patch
 
@@ -77,91 +70,106 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      - name: Setup KernelSU-Next & SUSFS
-        working-directory: gki/common
+      - name: Setup KSUN & SUSFS
         run: |
-          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
-          echo "➡️ Menambahkan KernelSU-Next"
-          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
-          echo "✅ KernelSU-Next added"
-          echo "➡️ Cloning susfs4ksu"
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
-          echo "✅ SUSFS berhasil diclone"
-          echo "🩹 Patching susfs4ksu"
+          cd gki/common
+          
+          # Add KSU-Next as submodule
+          echo "[+] Adding KernelSU-Next submodule"
+          git submodule add --force -b next https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU-Next
+          git submodule update --init --recursive
+          
+          # Setup KSU (Updated to use dev profile)
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
+          
+          # Setup SUSFS
+          echo "[+] Cloning SUSFS"
+          git clone https://gitlab.com/simonpunk/susfs4ksu/ -b gki-android12-5.10 sus
+          
+          # Apply SUSFS patches
+          rm -rf sus/.git
           susfs=sus/kernel_patches
           cp -r $susfs/fs .
           cp -r $susfs/include .
           cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-          echo "✅ SUSFS patched"
 
       - name: Apply common fixes
         working-directory: gki/common
         run: |
-          echo "Applying requested cherry-picks..."
-          
-          # Patch 1: Common 5.10 update/fix
-          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
-             echo "git am failed, falling back to patch..."
-             curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
-          }
+          echo "Applying manual cherry-picks..."
+          PATCH_URL="https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch"
+          PATCH_FILE="common_fix.patch"
+
+          # DL patch
+          curl -L "${PATCH_URL}" -o "${PATCH_FILE}"
+
+          # Verify
+          if [ ! -s "${PATCH_FILE}" ]; then
+            echo "Patch download failed!"
+            exit 1
+          fi
+
+          # Apply
+          if git am -3 < "${PATCH_FILE}"; then
+            echo "Applied successfully."
+          else
+            echo "git am failed, forcing patch..."
+            git am --abort
+            patch -p1 --fuzz=3 < "${PATCH_FILE}" || true
+          fi
+          rm "${PATCH_FILE}"
 
       - name: Fix Stack Protector
         working-directory: gki/common
         run: |
-          echo "🛠️ Applying manual Stack Protector fix "
-          # 1. Edit arch/arm64/Kconfig
+          echo "Fixing Stack Protector config..."
           sed -i '/config STACKPROTECTOR_PER_TASK/{n;s/def_bool y/bool "Stack Protector per task"\n\tdefault y/;}' arch/arm64/Kconfig
-          # 2. Disable di gki_defconfig
           echo "# CONFIG_STACKPROTECTOR_PER_TASK is not set" >> arch/arm64/configs/gki_defconfig
-          echo "✅ Stack Protector fix applied manually."
 
-      - name: Patch module & DRM (Xiaomi Compat)
-        working-directory: gki/common
+      - name: Patch module & DRM
         run: |
-          echo "🩹 [9/10] Menerapkan patch kompatibilitas untuk perangkat Xiaomi"
-          sed -i '/pr_warn.*disagrees about version of symbol.*/,+1 s/.*/return 1;/' kernel/module.c
-          sed -i '/^static int drm_atomic_check_valid_clones/,/^}/d' drivers/gpu/drm/drm_atomic_helper.c
-          sed -i '/ret = drm_atomic_check_valid_clones/,/return ret;/d' drivers/gpu/drm/drm_atomic_helper.c
-          echo "✅ Perbaikan selesai"
+          cd gki
+          echo "Fixing module.c & DRM..."
+          sed -i '/pr_warn.*disagrees about version of symbol.*/,+1 s/.*/return 1;/' common/kernel/module.c
+          sed -i '/^static int drm_atomic_check_valid_clones/,/^}/d' common/drivers/gpu/drm/drm_atomic_helper.c
+          sed -i '/ret = drm_atomic_check_valid_clones/,/return ret;/d' common/drivers/gpu/drm/drm_atomic_helper.c
 
       - name: Remove check_defconfig
         run: |
-          echo "🧹 [Clean-Up] Deleting check_defconfig"
-          sed -i 's/check_defconfig//' gki/common/build.config.gki
+          cd gki
+          sed -i 's/check_defconfig//' ./common/build.config.gki
 
-      - name: Inject All Kernel Configs
+      - name: Fix git index
+        run: |
+          cd gki/common
+          
+          # Cleanup susfs git only
+          rm -rf sus/.git
+          git rm --cached --ignore-unmatch -r sus
+          
+          # Add submodule & susfs to index
+          git add sus
+          git add KernelSU-Next
+          
+          git commit -m "Inject KernelSU & SUSFS" || true
+
+      - name: Inject KSU & Network configs
         run: |
           DEFCONFIG="gki/common/arch/arm64/configs/gki_defconfig"
-          echo "Injecting custom configs to $DEFCONFIG"
+          echo "Injecting configs..."
           
-          # --- KSU & KPM Configs ---
+            # --- KSU & KPM Configs ---
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KPM=n" >> $DEFCONFIG
           echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> $DEFCONFIG
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
+          echo "CONFIG_KSU_KPROBES_HOOK=n" >> $DEFCONFIG
+          echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG
           
-          # --- SUSFS Configs ---
-          echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_KSTAT_SPOOF_GENERIC=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSTAT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $DEFCONFIG
-          
-          # --- Custom Network & FS ---
+          # Net/FS Tweaks
           echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
           echo "CONFIG_IP_NF_TARGET_TTL=y" >> $DEFCONFIG
@@ -174,19 +182,31 @@ jobs:
           echo "CONFIG_TCP_CONG_WESTWOOD=n" >> $DEFCONFIG
           echo "CONFIG_TCP_CONG_HTCP=n" >> $DEFCONFIG 
           echo "CONFIG_DEFAULT_BBR=y" >> $DEFCONFIG
-          
-          # --- Optimasi tambahan (Smooth & Responsiveness) ---
-          echo "CONFIG_HZ_300=y" >> $DEFCONFIG
-          echo "CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y" >> $DEFCONFIG
-          echo "CONFIG_SCHED_TUNE=y" >> $DEFCONFIG
-          echo "CONFIG_MQ_IOSCHED_KYBER=y" >> $DEFCONFIG
-          echo "CONFIG_MQ_IOSCHED_BFQ=y" >> $DEFCONFIG
-          echo "CONFIG_IOSCHED_BFQ=y" >> $DEFCONFIG
-          echo "CONFIG_BFQ_GROUP_IOSCHED=y" >> $DEFCONFIG
-          echo "CONFIG_ZRAM=y" >> $DEFCONFIG
-          echo "CONFIG_ZRAM_WRITEBACK=y" >> $DEFCONFIG
 
-      - name: Apply JackA1ltman Syscall Hook Script
+      - name: Set version
+        run: |
+          cd gki/common
+          echo "" > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+          
+          KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
+
+          if [ -n "$KERNEL_NAME" ]; then
+             echo "Using custom name: $KERNEL_NAME"
+             if grep -q '^EXTRAVERSION *=' Makefile; then
+               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
+             else
+               echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
+             fi
+          else
+             echo "Using default kernel name"
+          fi
+
+      - name: Set HZ=300
+        run: |
+          echo -e '\nCONFIG_HZ_300=y\nCONFIG_HZ=300' >> gki/common/arch/arm64/configs/gki_defconfig
+      
+       - name: Apply JackA1ltman Syscall Hook Script
         working-directory: gki
         run: |
           echo "🩹 Menerapkan patch hook syscall dari JackA1ltman..."
@@ -197,36 +217,15 @@ jobs:
           echo "✅ Syscall hook script dari JackA1ltman berhasil dijalankan."
           rm -f syscall_hook_patches.sh
 
-      - name: Set version
-        working-directory: gki/common
-        run: |
-          echo "" > scripts/setlocalversion
-          chmod +x scripts/setlocalversion
-          
-          KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
-
-          if [ -n "$KERNEL_NAME" ]; then
-             echo "Setting custom kernel name: $KERNEL_NAME"
-             if grep -q '^EXTRAVERSION *=' Makefile; then
-               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
-             else
-               echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
-             fi
-          else
-             echo "Kernel name input is empty. Skipping custom name (Using Default)."
-          fi
-
       - name: Setup Clang
         working-directory: gki
         run: |
           mkdir -p prebuilts-master/clang/host/linux-x86
           
           if [ "${{ github.event.inputs.clang_version }}" == "r536225 (Clang 19)" ]; then
-            echo "Setting up Clang-19 (r536225)..."
             CLANG_VER="clang-r536225"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel-2025/clang-r536225.tar.gz"
           else
-            echo "Setting up Clang-20 (r547379)..."
             CLANG_VER="clang-r547379"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/62cdcefa89e31af2d72c366e8b5ef8db84caea62/clang-r547379.tar.gz"
           fi
@@ -237,25 +236,26 @@ jobs:
           cd prebuilts-master/clang/host/linux-x86
           curl -L "${CLANG_URL}" | tar -xz -C $CLANG_VER
           
+          # Symlink to default expected clang version
           rm -rf clang-r416183b
           ln -sf $CLANG_VER clang-r416183b
 
       - name: Commit changes
-        working-directory: gki/common
         run: |
+          cd gki/common
           git add .
-          git commit -m "Final clean tree before build" || true
+          git commit -m "Final tree" || true
 
       - name: Compile
-        working-directory: gki
         run: |
+          cd gki
           LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: KSUN-Kernel-Image
+          name: Aetherium-Kernel-Image
           path: gki/out/android12-5.10/common/arch/arm64/boot/Image
           if-no-files-found: warn
 
@@ -263,9 +263,9 @@ jobs:
         if: always() 
         run: |
           if [ -f gki/out/android12-5.10/common/arch/arm64/boot/Image ]; then
-            curl -u :cf8ac774-486a-4775-9028-e7f134fcafc8 \
+            curl -u :23c84c82-ce06-4e35-bc1f-69eaa13b9958 \
               -F file=@gki/out/android12-5.10/common/arch/arm64/boot/Image \
               https://pixeldrain.com/api/file
           else
-            echo "Image file not found. Build likely failed."
+            echo "Image not found."
           fi
