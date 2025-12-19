@@ -82,19 +82,9 @@ jobs:
         run: |
           echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
           echo "➡️ Menambahkan KernelSU-Next"
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
           echo "✅ KernelSU-Next added"
-          echo "➡️ Cloning susfs4ksu"
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
-          echo "✅ SUSFS berhasil diclone"
-          echo "🩹 Patching susfs4ksu"
-          susfs=sus/kernel_patches
-          cp -r $susfs/fs .
-          cp -r $susfs/include .
-          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-          echo "✅ SUSFS patched"
-
+          
       - name: Apply common fixes
         working-directory: gki/common
         run: |
@@ -144,7 +134,6 @@ jobs:
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
-          CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
