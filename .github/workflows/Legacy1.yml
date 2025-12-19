@@ -33,6 +33,9 @@ jobs:
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Configure Git
         run: |
           git config --global user.name "Boltx"
@@ -70,29 +73,13 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      - name: Setup KSUN & SUSFS
+      - name: Setup KSUNEX LEGACY
         run: |
-          cd gki/common
-          
-          # Add KSU-Next as submodule
-          echo "[+] Adding KernelSU-Next submodule"
-          git submodule add --force -b next https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU-Next
-          git submodule update --init --recursive
-          
-          # Setup KSU (Updated to use dev profile)
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
-          
-          # Setup SUSFS
-          echo "[+] Cloning SUSFS"
-          git clone https://gitlab.com/simonpunk/susfs4ksu/ -b gki-android12-5.10 sus
-          
-          # Apply SUSFS patches
-          rm -rf sus/.git
-          susfs=sus/kernel_patches
-          cp -r $susfs/fs .
-          cp -r $susfs/include .
-          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
+          cd gki/common 
+          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
+          echo "➡️ Menambahkan KernelSU-Next"
+          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
+          echo "✅ KernelSU-Next added"
 
       - name: Apply common fixes
         working-directory: gki/common
@@ -140,20 +127,6 @@ jobs:
           cd gki
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
-      - name: Fix git index
-        run: |
-          cd gki/common
-          
-          # Cleanup susfs git only
-          rm -rf sus/.git
-          git rm --cached --ignore-unmatch -r sus
-          
-          # Add submodule & susfs to index
-          git add sus
-          git add KernelSU-Next
-          
-          git commit -m "Inject KernelSU & SUSFS" || true
-
       - name: Inject KSU & Network configs
         run: |
           DEFCONFIG="gki/common/arch/arm64/configs/gki_defconfig"
@@ -162,12 +135,13 @@ jobs:
             # --- KSU & KPM Configs ---
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KPM=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG
+          echo "CONFIG_KSU_KPROBES=n" >> $DEFCONFIG
+          echo "CONFIG_KPROBES=n" >> $DEFCONFIG
+          echo "CONFIG_HAVE_KPROBES=n" >> $DEFCONFIG
+          echo "CONFIG_KPROBE_EVENTS=n" >> $DEFCONFIG
+          # AKTIFKAN MANUAL SYSCALL HOOK
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_KPROBES_HOOK=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_KPROBES_HOOK=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG
+          echo "CONFIG_KSU_SYSCALL_HOOK=y" >> $DEFCONFIG
           
           # Net/FS Tweaks
           echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
