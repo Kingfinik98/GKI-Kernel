@@ -87,14 +87,33 @@ jobs:
       - name: Terapkan SUSFS & Perbaikan v2.0.0
         working-directory: gki/common
         run: |
-          echo "🩹 Menerapkan patch SUSFS v2.0.0 dari commit a64d684f..."
-          # Menggunakan URL .patch untuk menerapkan seluruh commit secara langsung
-          curl -L "https://github.com/WildKernels/kernel_patches/commit/a64d684f9eb5f6add3a057187e4d02e186caf3b6.patch" | git am -3 || {
-            echo "⚠️ git am gagal. Membatalkan dan beralih ke patch paksa..."
-            git am --abort
-            curl -L "https://github.com/WildKernels/kernel_patches/commit/a64d684f9eb5f6add3a057187e4d02e186caf3b6.patch" | patch -p1
-          }
-          echo "✅ Patch SUSFS dari commit diterapkan"
+          echo "🩹 Menerapkan patch SUSFS v2.0.0 satu per satu..."
+          
+          echo "Menerapkan patch: fix_Makefile.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_Makefile.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: fix_allowlist.c.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_allowlist.c.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: fix_ksu.c.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_ksu.c.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: fix_ksud.c.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_ksud.c.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: fix_selinux.c.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_selinux.c.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: fix_sucompat.c.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_sucompat.c.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: fix_supercalls.c.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/fix_supercalls.c.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "Menerapkan patch: overwrite_hook_mode.patch"
+          curl -Ls "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v2.0.0/overwrite_hook_mode.patch" | patch -p1 || echo "⚠️ Patch gagal atau tidak diperlukan."
+          
+          echo "✅ Proses penerapan patch selesai."
 
       - name: Terapkan perbaikan umum
         working-directory: gki/common
