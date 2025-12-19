@@ -84,17 +84,7 @@ jobs:
           echo "➡️ Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
           echo "✅ KernelSU-Next ditambahkan"
-          echo "➡️ Mengkloning susfs4ksu"
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
-          echo "✅ SUSFS berhasil dikloning"
-          echo "🩹 Mempatch susfs4ksu"
-          susfs=sus/kernel_patches
-          cp -r $susfs/fs .
-          cp -r $susfs/include .
-          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-          echo "✅ SUSFS dipatch"
-
+      
       - name: Terapkan SUSFS v2.0.0 (KSUN 3.0.0 dev, GKI 5.10)
         working-directory: gki/common
         run: |
