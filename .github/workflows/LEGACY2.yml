@@ -190,7 +190,7 @@ jobs:
           CONFIG_ZRAM=y
           CONFIG_ZRAM_WRITEBACK=y
           EOF
-
+          
       - name: Apply scope_min_manual_hooks_v1.6.patch
         working-directory: gki
         run: |
@@ -198,8 +198,8 @@ jobs:
           cd common
           curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
           
-          echo "Menerapkan patch menggunakan git apply..."
-          git apply scope_min_manual_hooks_v1.6.patch
+          echo "Menerapkan patch dengan patch --fuzz=3..."
+          patch -p1 --fuzz=3 < scope_min_manual_hooks_v1.6.patch
           
           echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
