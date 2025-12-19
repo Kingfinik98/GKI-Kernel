@@ -76,7 +76,7 @@ jobs:
       - name: Setup KSUNEX LEGACY
         run: |
           cd gki/common 
-          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
+          echo "🧩 tambahkan KernelSU-Next"
           echo "➡️ Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
           echo "✅ KernelSU-Next added"
@@ -132,17 +132,22 @@ jobs:
           DEFCONFIG="gki/common/arch/arm64/configs/gki_defconfig"
           echo "Injecting configs..."
           
-            # --- KSU & KPM Configs ---
+          # --- KSU & KPM Configs (BENAR) ---
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KPM=n" >> $DEFCONFIG
+
+          # KernelSU: MATIKAN kprobes
           echo "CONFIG_KSU_KPROBES=n" >> $DEFCONFIG
-          echo "CONFIG_KPROBES=n" >> $DEFCONFIG
-          echo "CONFIG_HAVE_KPROBES=n" >> $DEFCONFIG
-          echo "CONFIG_KPROBE_EVENTS=n" >> $DEFCONFIG
+
+          # KPROBES WAJIB HIDUP UNTUK GKI ABI
+          echo "CONFIG_KPROBES=y" >> $DEFCONFIG
+          echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
+          echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
+
           # AKTIFKAN MANUAL SYSCALL HOOK
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
           echo "CONFIG_KSU_SYSCALL_HOOK=y" >> $DEFCONFIG
-          
+
           # Net/FS Tweaks
           echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
@@ -229,7 +234,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Aetherium-Kernel-Image
+          name: KSU-Kernel-Image
           path: gki/out/android12-5.10/common/arch/arm64/boot/Image
           if-no-files-found: warn
 
@@ -237,7 +242,7 @@ jobs:
         if: always() 
         run: |
           if [ -f gki/out/android12-5.10/common/arch/arm64/boot/Image ]; then
-            curl -u :23c84c82-ce06-4e35-bc1f-69eaa13b9958 \
+            curl -u :cf8ac774-486a-4775-9028-e7f134fcafc8 \
               -F file=@gki/out/android12-5.10/common/arch/arm64/boot/Image \
               https://pixeldrain.com/api/file
           else
