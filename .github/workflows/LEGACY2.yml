@@ -77,7 +77,7 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      ### PERUBAHAN: SETUP SUSFS SESUAI BUILD.SH TERBARU ###
+      ### PERUBAHAN: SETUP SUSFS SESUAI BUILD.SH TERBARU (TANPA INTEGRASI KERNELSU) ###
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
@@ -100,16 +100,17 @@ jobs:
           echo "⚠️ Integrasi SUSFS ke KernelSU-Next dilewati karena dinonaktifkan oleh developer."
       ### AKHIR PERUBAHAN ###
 
-      ### PERUBAHAN: LANGKAH KRUSIAL UNTUK MEMPERBAIKI KOMPILASI ###
+      ### PERUBAHAN: PERBAIKAN KOMPILASI KERNELSU-NEXT DENGAN CARA YANG PALING PASTI ###
       - name: Fix KernelSU-Next Compilation with SUSFS
         working-directory: gki/common
         run: |
-          echo "🛠️ Memperbaiki kompilasi KernelSU-Next dengan SUSFS..."
-          echo "   Menghapus setuid_hook.c yang menyebabkan error kompilasi..."
-          # File ini memanggil SUSFS tetapi integrasi SUSFS dinonaktifkan, menyebabkan error.
-          # Menghapus file ini adalah solusi yang selaras dengan build.sh.
-          rm -f KernelSU-Next/drivers/kernelsu/setuid_hook.c
-          echo "✅ File setuid_hook.c dihapus. Kompilasi seharusnya berhasil."
+          echo "🛠️ Memperbaiki kompilasi KernelSU-Next dengan SuSFS..."
+          echo "   Mengomentari setuid_hook.o dari Makefile untuk mencegah error kompilasi."
+          echo "   File ini memanggil SuSFS tetapi integrasinya dinonaktifkan, menyebabkan error."
+          # Mengomentari (menonaktifkan) baris yang mengandung 'setuid_hook.o' adalah cara yang paling pasti.
+          # Ini mencegah build system mencoba mengompilasi file yang bermasalah.
+          sed -i 's/.*setuid_hook.o/# &/' KernelSU-Next/drivers/kernelsu/Makefile
+          echo "✅ setuid_hook.o dinonaktifkan dari Makefile. Kompilasi seharusnya berhasil."
       ### AKHIR PERUBAHAN ###
 
       - name: Apply common fixes
@@ -160,7 +161,7 @@ jobs:
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          # Manual Hook dan kaitannya dinonaktifkan karena menggunakan SUSFS
+          # Manual Hook dinonaktifkan
           CONFIG_KSU_MANUAL_HOOK=n
           CONFIG_KSU_HAS_MANUAL_HOOK=n
           CONFIG_KSU_SYSCALL_HOOK=n
@@ -209,7 +210,7 @@ jobs:
           CONFIG_ZRAM=y
           CONFIG_ZRAM_WRITEBACK=y
           EOF
-
+          
       - name: Set version
         working-directory: gki/common
         run: |
