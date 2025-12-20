@@ -68,12 +68,7 @@ jobs:
         run: |
           echo "🧩 Setup KernelSU-Next (Legacy)"
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
-          
-          echo "➡️ Fix Folder Drivers Makefile"
-          if ! grep -q "obj-\$(CONFIG_KSU) += kernelsu/" drivers/Makefile; then
-            echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
-          fi
-
+          echo "✅ KernelSU-Next added"
           echo "➡️ Cloning susfs4ksu"
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
           echo "✅ SUSFS berhasil diclone"
@@ -85,31 +80,15 @@ jobs:
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
           echo "✅ SUSFS patched"
 
-      # --- PERBAIKAN KRUSIAL: Menambahkan definisi fungsi yang hilang ---
-      - name: Add Legacy Hooks for Manual Patch
+      # --- PERBAIKAN RESMI: Menggunakan patch AIO untuk mengatasi undefined symbol ---
+      - name: Apply SUSFS AIO Patch (Fix for undefined symbol)
         working-directory: gki/common
         run: |
-          echo "🔧 Menambahkan definisi fungsi legacy hooks..."
-          cat > drivers/kernelsu/legacy_hooks.c << 'EOF'
-          #include <linux/fs.h>
-          #include <linux/file.h>
-          #include <linux/uaccess.h>
-
-          bool ksu_input_hook __read_mostly = false;
-          bool ksu_vfs_read_hook __read_mostly = false;
-
-          int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value) { return 0; }
-          int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
-          int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode, int *flags) { return 0; }
-          int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr, size_t *count_ptr) { return 0; }
-          int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags) { return 0; }
-          int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg) { return 0; }
-          EOF
-          
-          # PERBAIKAN: Tambahkan ke daftar kernelsu-objs, BUKAN obj-y
-          echo "kernelsu-objs += legacy_hooks.o" >> drivers/kernelsu/Makefile
-          
-          echo "✅ Legacy hooks berhasil ditambahkan dan Makefile diperbarui."
+          echo "🩹 Applying SUSFS AIO patch to fix undefined symbols..."
+          curl -o susfs_aio.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/72fc78cfb97b1566fc6582ba25655fc88e7b302b/wild/susfs_fix_patches/v2.0.0/Next-3.0.0-susfs-2.0.0-AIO.patch
+          patch -p1 < susfs_aio.patch
+          echo "✅ SUSFS AIO patch applied successfully."
+          rm -f susfs_aio.patch
 
       # ===============================================================
       # 4. PATCHING KERNEL (UMUM)
@@ -140,6 +119,7 @@ jobs:
         run: |
           echo "Applying requested cherry-picks..."
           curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
+             echo "git am failed, falling back to patch..."
              curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
           }
 
@@ -149,6 +129,7 @@ jobs:
           echo "🛠️ Applying manual Stack Protector fix "
           sed -i '/config STACKPROTECTOR_PER_TASK/{n;s/def_bool y/bool "Stack Protector per task"\n\tdefault y/;}' arch/arm64/Kconfig
           echo "# CONFIG_STACKPROTECTOR_PER_TASK is not set" >> arch/arm64/configs/gki_defconfig
+          echo "✅ Stack Protector fix applied manually."
 
       - name: Patch module & DRM (Xiaomi Compat)
         working-directory: gki/common
@@ -157,6 +138,7 @@ jobs:
           sed -i '/pr_warn.*disagrees about version of symbol.*/,+1 s/.*/return 1;/' kernel/module.c
           sed -i '/^static int drm_atomic_check_valid_clones/,/^}/d' drivers/gpu/drm/drm_atomic_helper.c
           sed -i '/ret = drm_atomic_check_valid_clones/,/return ret;/d' drivers/gpu/drm/drm_atomic_helper.c
+          echo "✅ Perbaikan selesai"
 
       - name: Remove check_defconfig
         run: |
@@ -172,7 +154,6 @@ jobs:
           echo "⚙️ Menambahkan konfigurasi kernel"
           DEFCONFIG="arch/arm64/configs/gki_defconfig"
           cat >> $DEFCONFIG <<EOF
-          
           # Konfigurasi KSU NEXT & SUSFS
           CONFIG_KSU=y
           CONFIG_KPM=n
@@ -180,7 +161,6 @@ jobs:
           CONFIG_KSU_MANUAL_HOOK=y
           CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
-          
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
@@ -199,17 +179,22 @@ jobs:
           CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
           CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
           CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
-          
-          # Tambahan tmpfs & Optimasi
+          # Add additional tmpfs config setting
           CONFIG_TMPFS_XATTR=y
           CONFIG_TMPFS_POSIX_ACL=y
+          # Add additional config setting
           CONFIG_IP_NF_TARGET_TTL=y
           CONFIG_IP6_NF_TARGET_HL=y
           CONFIG_IP6_NF_MATCH_HL=y
+          # Add BBR Config
           CONFIG_TCP_CONG_ADVANCED=y
           CONFIG_TCP_CONG_BBR=y
           CONFIG_NET_SCH_FQ=y
+          CONFIG_TCP_CONG_BIC=n
+          CONFIG_TCP_CONG_WESTWOOD=n
+          CONFIG_TCP_CONG_HTCP=n
           CONFIG_DEFAULT_BBR=y
+          # Optimasi tambahan (Smooth & Responsiveness)
           CONFIG_HZ_300=y
           CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
           CONFIG_SCHED_TUNE=y
@@ -218,6 +203,7 @@ jobs:
           CONFIG_IOSCHED_BFQ=y
           CONFIG_BFQ_GROUP_IOSCHED=y
           CONFIG_ZRAM=y
+          CONFIG_ZRAM_WRITEBACK=y
           EOF
           
       # ===============================================================
@@ -229,6 +215,7 @@ jobs:
           echo "🩹 Menerapkan scope_min_manual_hooks_v1.6.patch..."
           curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
           patch -p1 --fuzz=3 < scope_min_manual_hooks_v1.6.patch
+          echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
           
       # ===============================================================
@@ -238,9 +225,18 @@ jobs:
         working-directory: gki/common
         run: |
           echo "" > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+          
           KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
           if [ -n "$KERNEL_NAME" ]; then
-             sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
+             echo "Setting custom kernel name: $KERNEL_NAME"
+             if grep -q '^EXTRAVERSION *=' Makefile; then
+               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
+             else
+               echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
+             fi
+          else
+             echo "Kernel name input is empty. Skipping custom name (Using Default)."
           fi
 
       - name: Setup Clang
@@ -260,6 +256,7 @@ jobs:
           mkdir -p prebuilts-master/clang/host/linux-x86/$CLANG_VER
           cd prebuilts-master/clang/host/linux-x86
           curl -L "${CLANG_URL}" | tar -xz -C $CLANG_VER
+          rm -rf clang-r416183b
           ln -sf $CLANG_VER clang-r416183b
 
       - name: Commit changes
