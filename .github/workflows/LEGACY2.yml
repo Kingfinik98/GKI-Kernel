@@ -77,16 +77,7 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      ### PERUBAHAN: Manual Hook DITERAPKAN DAHULU ###
-      - name: Apply Custom Manual Hook Patch
-        working-directory: gki
-        run: |
-          echo "🩹 Applying custom manual hook patch (v1.4)..."
-          curl -s https://raw.githubusercontent.com/Kingfinik98/Kernel-patch/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.4.patch \
-            | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
-          echo "✅ Manual hook patch applied successfully."
-
-      ### PERUBAHAN: Setup SUSFS VERSI BARU ###
+      ### PERUBAHAN: SETUP SUSFS VERSI BARU DENGAN FIX PATCHES ###
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
@@ -105,11 +96,36 @@ jobs:
           patch -p1 < $susfs/50_add_susfs_in_gki-android12-5.10.patch || true
           echo "✅ Patch kernel-side SUSFS selesai"
           
+          echo "🔧 Mendapatkan versi SUSFS dan menerapkan patch perbaikan"
+          SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
+          echo "   Versi SUSFS yang terdeteksi: $SUSFS_VERSION"
+          
+          echo "📦 Meng-clone repositori patch perbaikan..."
+          KERNEL_PATCHES_DIR="$PWD/kernel_patches"
+          SUSFS_FIX_PATCHES="$KERNEL_PATCHES_DIR/next/susfs_fix_patches/$SUSFS_VERSION"
+          git clone --depth=1 -q https://github.com/WildKernels/kernel_patches $KERNEL_PATCHES_DIR
+          
+          if [ ! -d "$SUSFS_FIX_PATCHES" ]; then
+            echo "❌ ERROR: Patch perbaikan untuk SUSFS versi $SUSFS_VERSION tidak ditemukan."
+            exit 1
+          fi
+          
+          echo "🩹 Menerapkan patch perbaikan ke KernelSU-Next..."
+          cd KernelSU-Next
+          for p in "$SUSFS_FIX_PATCHES"/*.patch; do
+            echo "   Menerapkan $(basename $p)..."
+            patch -p1 --forward --fuzz=3 < $p
+          done
+          find . -type f \( -name '*.orig' -o -name '*.rej' \) -delete
+          cd ..
+          echo "✅ Patch perbaikan SUSFS selesai"
+          
           echo "🩹 Menerapkan patch SUSFS ke KernelSU-Next"
           cd KernelSU-Next
           patch -p1 < ../sus/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
           cd ..
           echo "✅ Patch KernelSU-side SUSFS selesai"
+      ### AKHIR PERUBAHAN ###
 
       - name: Apply common fixes
         working-directory: gki/common
@@ -159,9 +175,9 @@ jobs:
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          CONFIG_KSU_MANUAL_HOOK=y # Diaktifkan kembali
-          CONFIG_KSU_HAS_MANUAL_HOOK=y # Diaktifkan kembali
-          CONFIG_KSU_SYSCALL_HOOK=y # Diaktifkan kembali
+          CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_HAS_MANUAL_HOOK=y
+          CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
@@ -207,6 +223,16 @@ jobs:
           CONFIG_ZRAM=y
           CONFIG_ZRAM_WRITEBACK=y
           EOF
+          
+      ### PERUBAHAN: PATCH MANUAL HOOK DIKEMBALIKAN KE BAWAH ###
+      - name: Apply Custom Manual Hook Patch
+        working-directory: gki
+        run: |
+          echo "🩹 Applying custom manual hook patch (v1.4)..."
+          curl -s https://raw.githubusercontent.com/Kingfinik98/Kernel-patch/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.4.patch \
+            | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
+          echo "✅ Manual hook patch applied successfully."
+      ### AKHIR PERUBAHAN ###
 
       - name: Set version
         working-directory: gki/common
