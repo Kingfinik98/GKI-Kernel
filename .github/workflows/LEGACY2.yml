@@ -50,12 +50,6 @@ jobs:
       - name: Init & Sync GKI
         run: |
           mkdir gki && cd gki
-          # PERUBAHAN: Menggunakan branch mglru untuk GKI 5.10 sesuai build.sh baru
-          repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
-          # Mengganti branch master menjadi mglru
-          repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
-          # Mengganti branch master menjadi mglru
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
 
@@ -83,12 +77,11 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      ### PERUBAHAN: SETUP SUSFS SESUAI BUILD.SH TERBARU (TANPA INTEGRASI KERNELSU) ###
+      ### PERUBAHAN: SETUP SUSFS SESUAI BUILD.SH TERBARU ###
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
           echo "🧩 Menambahkan KernelSU-Next"
-          # Menggunakan repo yang sesuai untuk SUSFS
           curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
           echo "✅ KernelSU-Next added"
           
@@ -105,6 +98,18 @@ jobs:
           
           # Bagian integrasi SUSFS ke KernelSU-Next sengaja DILEWAT (disabled) sesuai build.sh
           echo "⚠️ Integrasi SUSFS ke KernelSU-Next dilewati karena dinonaktifkan oleh developer."
+      ### AKHIR PERUBAHAN ###
+
+      ### PERUBAHAN: LANGKAH KRUSIAL UNTUK MEMPERBAIKI KOMPILASI ###
+      - name: Fix KernelSU-Next Compilation with SUSFS
+        working-directory: gki/common
+        run: |
+          echo "🛠️ Memperbaiki kompilasi KernelSU-Next dengan SUSFS..."
+          echo "   Menghapus setuid_hook.c yang menyebabkan error kompilasi..."
+          # File ini memanggil SUSFS tetapi integrasi SUSFS dinonaktifkan, menyebabkan error.
+          # Menghapus file ini adalah solusi yang selaras dengan build.sh.
+          rm -f KernelSU-Next/drivers/kernelsu/setuid_hook.c
+          echo "✅ File setuid_hook.c dihapus. Kompilasi seharusnya berhasil."
       ### AKHIR PERUBAHAN ###
 
       - name: Apply common fixes
@@ -155,7 +160,7 @@ jobs:
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          # Manual Hook dinonaktifkan
+          # Manual Hook dan kaitannya dinonaktifkan karena menggunakan SUSFS
           CONFIG_KSU_MANUAL_HOOK=n
           CONFIG_KSU_HAS_MANUAL_HOOK=n
           CONFIG_KSU_SYSCALL_HOOK=n
@@ -204,8 +209,6 @@ jobs:
           CONFIG_ZRAM=y
           CONFIG_ZRAM_WRITEBACK=y
           EOF
-          
-      # --- LANGKAH MANUAL HOOK TELAH DIHAPUS TOTAL ---
 
       - name: Set version
         working-directory: gki/common
