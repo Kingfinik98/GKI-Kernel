@@ -77,23 +77,39 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
+      ### PERUBAHAN: Manual Hook DITERAPKAN DAHULU ###
+      - name: Apply Custom Manual Hook Patch
+        working-directory: gki
+        run: |
+          echo "🩹 Applying custom manual hook patch (v1.4)..."
+          curl -s https://raw.githubusercontent.com/Kingfinik98/Kernel-patch/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.4.patch \
+            | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
+          echo "✅ Manual hook patch applied successfully."
+
+      ### PERUBAHAN: Setup SUSFS VERSI BARU ###
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
-          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
-          echo "➡️ Menambahkan KernelSU-Next"
+          echo "🧩 Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
           echo "✅ KernelSU-Next added"
-          echo "➡️ Cloning susfs4ksu"
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
+          
+          echo "➡️ Mengatur SUSFS untuk GKI 5.10"
+          git clone --depth=1 -q https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
           echo "✅ SUSFS berhasil diclone"
-          echo "🩹 Patching susfs4ksu"
+          
+          echo "🩹 Menerapkan patch SUSFS ke kernel"
           susfs=sus/kernel_patches
-          cp -r $susfs/fs .
-          cp -r $susfs/include .
-          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-          echo "✅ SUSFS patched"
+          cp -R $susfs/fs ./
+          cp -R $susfs/include ./
+          patch -p1 < $susfs/50_add_susfs_in_gki-android12-5.10.patch || true
+          echo "✅ Patch kernel-side SUSFS selesai"
+          
+          echo "🩹 Menerapkan patch SUSFS ke KernelSU-Next"
+          cd KernelSU-Next
+          patch -p1 < ../sus/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
+          cd ..
+          echo "✅ Patch KernelSU-side SUSFS selesai"
 
       - name: Apply common fixes
         working-directory: gki/common
@@ -143,9 +159,9 @@ jobs:
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          CONFIG_KSU_MANUAL_HOOK=y
-          CONFIG_KSU_HAS_MANUAL_HOOK=y
-          CONFIG_KSU_SYSCALL_HOOK=y
+          CONFIG_KSU_MANUAL_HOOK=y # Diaktifkan kembali
+          CONFIG_KSU_HAS_MANUAL_HOOK=y # Diaktifkan kembali
+          CONFIG_KSU_SYSCALL_HOOK=y # Diaktifkan kembali
           CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
@@ -191,15 +207,7 @@ jobs:
           CONFIG_ZRAM=y
           CONFIG_ZRAM_WRITEBACK=y
           EOF
-          
-      - name: Apply Custom Manual Hook Patch
-        working-directory: gki
-        run: |
-          echo "Applying cleaned manual hook patch..."
-          curl -s https://raw.githubusercontent.com/Kingfinik98/Kernel-patch/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.4.patch \
-            | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common
-          echo "✅ Manual hook patch applied successfully"
-          
+
       - name: Set version
         working-directory: gki/common
         run: |
