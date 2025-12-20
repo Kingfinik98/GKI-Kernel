@@ -1,4 +1,4 @@
-name: BUILD GKI KERNELSUNEXT
+name: BUILD1 GKI KERNELSUNEXT
 
 on:
   workflow_dispatch:
@@ -75,13 +75,6 @@ jobs:
           echo "➡️ Menjalankan skrip setup.sh untuk KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
           echo "✅ KernelSU-Next berhasil ditambahkan"
-
-          git clone https://gitlab.com/simonpunk/susfs4ksu/ -b gki-android12-5.10 $KERNEL_SOURCE_DIR/sus
-          cp -r $KERNEL_SOURCE_DIR/sus/kernel_patches/fs .
-          cp -r $KERNEL_SOURCE_DIR/sus/kernel_patches/include .
-          cp $KERNEL_SOURCE_DIR/sus/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch .
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-          echo "[✓] SUSFS patched"
 
       # --- Langkah yang diganti ---
       - name: Apply Jonjeexe Manual Hook Script
