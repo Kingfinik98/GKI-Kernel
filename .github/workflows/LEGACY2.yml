@@ -193,16 +193,15 @@ jobs:
           EOF
 
       - name: Apply Jonjeexe Manual Hook Script
-        working-directory: gki
+        working-directory: gki/common
         run: |
-          echo "🩹 Menerapkan patch manual hook dari Jonjeexe sesuai klarifikasi..."
-          # Step 1: Clone repositori ke folder Patches
+          echo "🩹 Menerapkan patch manual hook dari Jonjeexe (FIXED PATH)..."
+          # Step 1: Clone repositori ke folder Patches di dalam direktori common
           echo "➡️ Meng-clone https://github.com/Jonjeexe/Ksu_Patches.git ke folder Patches"
           git clone https://github.com/Jonjeexe/Ksu_Patches.git Patches
           
-          # Step 2: Pindah ke direktori common dan download Patch.sh
-          echo "➡️ Pindah ke direktori common dan download Patch.sh"
-          cd common
+          # Step 2: Download Patch.sh di direktori yang sama
+          echo "➡️ Mendownload Patch.sh"
           curl -O https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/refs/heads/non-GKI/Patch.sh
           
           # Step 3: Mulai Patch dengan perintah bash
@@ -210,7 +209,7 @@ jobs:
           bash Patch.sh
           
           echo "✅ Patch manual hook dari Jonjeexe selesai dijalankan."
-          
+
       - name: Set version
         working-directory: gki/common
         run: |
