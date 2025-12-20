@@ -50,6 +50,12 @@ jobs:
       - name: Init & Sync GKI
         run: |
           mkdir gki && cd gki
+          # PERUBAHAN: Menggunakan branch mglru untuk GKI 5.10 sesuai build.sh baru
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
+          # Mengganti branch master menjadi mglru
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
+          repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
+          # Mengganti branch master menjadi mglru
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
 
@@ -77,11 +83,12 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      ### PERUBAHAN: SETUP SUSFS DENGAN PENANGANAN ERROR YANG LEBIH BAIK ###
+      ### PERUBAHAN: SETUP SUSFS SESUAI BUILD.SH TERBARU (TANPA INTEGRASI KERNELSU) ###
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
           echo "🧩 Menambahkan KernelSU-Next"
+          # Menggunakan repo yang sesuai untuk SUSFS
           curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
           echo "✅ KernelSU-Next added"
           
@@ -89,46 +96,15 @@ jobs:
           git clone --depth=1 -q https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
           echo "✅ SUSFS berhasil diclone"
           
-          echo "🩹 Menerapkan patch SUSFS ke kernel"
+          echo "🩹 Menerapkan patch SUSFS ke kernel (sisi kernel saja)"
           susfs=sus/kernel_patches
           cp -R $susfs/fs ./
           cp -R $susfs/include ./
           patch -p1 < $susfs/50_add_susfs_in_gki-android12-5.10.patch || true
           echo "✅ Patch kernel-side SUSFS selesai"
           
-          echo "🔧 Mendapatkan versi SUSFS dan patch perbaikan"
-          SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
-          echo "   Versi SUSFS yang terdeteksi: $SUSFS_VERSION"
-          
-          echo "📦 Meng-clone repositori patch perbaikan..."
-          KERNEL_PATCHES_DIR="$PWD/kernel_patches"
-          SUSFS_FIX_PATCHES="$KERNEL_PATCHES_DIR/next/susfs_fix_patches/$SUSFS_VERSION"
-          git clone --depth=1 -q https://github.com/WildKernels/kernel_patches $KERNEL_PATCHES_DIR
-          
-          if [ ! -d "$SUSFS_FIX_PATCHES" ]; then
-            echo "❌ ERROR: Patch perbaikan untuk SUSFS versi $SUSFS_VERSION tidak ditemukan."
-            exit 1
-          fi
-          
-          echo "🩹 Menerapkan patch SUSFS dan perbaikan ke KernelSU-Next..."
-          cd KernelSU-Next
-          
-          echo "   Menerapkan patch SUSFS utama..."
-          # Gunakan -N untuk mengabaikan jika sudah diterapkan, dan || true untuk mencegah error
-          patch -p1 -N < ../sus/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
-          
-          echo "   Menerapkan patch perbaikan..."
-          for p in "$SUSFS_FIX_PATCHES"/*.patch; do
-            echo "   Menerapkan $(basename $p)..."
-            # Gunakan -N dan || true di sini juga
-            patch -p1 -N < $p || true
-          done
-          
-          echo "   Membersihkan file patch sementara..."
-          find . -type f \( -name '*.orig' -o -name '*.rej' \) -delete
-          
-          cd ..
-          echo "✅ Patch SUSFS dan perbaikan selesai"
+          # Bagian integrasi SUSFS ke KernelSU-Next sengaja DILEWAT (disabled) sesuai build.sh
+          echo "⚠️ Integrasi SUSFS ke KernelSU-Next dilewati karena dinonaktifkan oleh developer."
       ### AKHIR PERUBAHAN ###
 
       - name: Apply common fixes
@@ -179,9 +155,10 @@ jobs:
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          CONFIG_KSU_MANUAL_HOOK=y
-          CONFIG_KSU_HAS_MANUAL_HOOK=y
-          CONFIG_KSU_SYSCALL_HOOK=y
+          # Manual Hook dinonaktifkan
+          CONFIG_KSU_MANUAL_HOOK=n
+          CONFIG_KSU_HAS_MANUAL_HOOK=n
+          CONFIG_KSU_SYSCALL_HOOK=n
           CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
@@ -228,19 +205,7 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
           
-      ### PERUBAHAN: PATCH MANUAL HOOK DENGAN PENANGANAN ERROR ###
-      - name: Apply Custom Manual Hook Patch
-        working-directory: gki
-        run: |
-          echo "🩹 Applying custom manual hook patch (v1.4)..."
-          echo "⚠️ PERINGATAN: Patch ini bentrok dengan SUSFS v2.0.0."
-          echo "   Build akan dilanjutkan, tetapi Anda perlu memperbarui patch manual-hook-v1.4.patch"
-          echo "   agar kompatibel dengan SUSFS v2.0.0 agar kernel berfungsi dengan baik."
-          # Menggunakan || true untuk mencegah build gagal, namun patch memiliki konflik dengan SUSFS.
-          curl -s https://raw.githubusercontent.com/Kingfinik98/Kernel-patch/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.4.patch \
-            | sed 's/\r$//' | awk '{print} END{print ""}' | patch -p1 -d common || true
-          echo "✅ Manual hook patch process finished (with potential conflicts)."
-      ### AKHIR PERUBAHAN ###
+      # --- LANGKAH MANUAL HOOK TELAH DIHAPUS TOTAL ---
 
       - name: Set version
         working-directory: gki/common
