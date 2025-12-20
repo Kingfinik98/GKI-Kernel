@@ -67,17 +67,16 @@ jobs:
         working-directory: gki/common
         run: |
           echo "🧩 Setup KernelSU-Next (Legacy)"
-          # Gunakan setup script dari fork Anda
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
           
           echo "➡️ Fix Folder Drivers Makefile"
-          # PENTING: Mendaftarkan folder kernelsu ke sistem build
           if ! grep -q "obj-\$(CONFIG_KSU) += kernelsu/" drivers/Makefile; then
             echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
           fi
 
           echo "➡️ Cloning susfs4ksu"
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
+          echo "✅ SUSFS berhasil diclone"
           echo "🩹 Patching susfs4ksu"
           susfs=sus/kernel_patches
           cp -r $susfs/fs .
@@ -91,14 +90,11 @@ jobs:
         working-directory: gki/common
         run: |
           echo "🔧 Menambahkan definisi fungsi legacy hooks..."
-          # Buat file C baru untuk fungsi-fungsi yang hilang
           cat > drivers/kernelsu/legacy_hooks.c << 'EOF'
           #include <linux/fs.h>
           #include <linux/file.h>
           #include <linux/uaccess.h>
 
-          // Fungsi-fungsi stub untuk patch manual hook
-          // Ini mengatasi error "undefined symbol"
           bool ksu_input_hook __read_mostly = false;
           bool ksu_vfs_read_hook __read_mostly = false;
 
@@ -110,8 +106,8 @@ jobs:
           int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg) { return 0; }
           EOF
           
-          # Tambahkan file baru ke Makefile agar dikompilasi
-          echo "obj-y += legacy_hooks.o" >> drivers/kernelsu/Makefile
+          # PERBAIKAN: Tambahkan ke daftar kernelsu-objs, BUKAN obj-y
+          echo "kernelsu-objs += legacy_hooks.o" >> drivers/kernelsu/Makefile
           
           echo "✅ Legacy hooks berhasil ditambahkan dan Makefile diperbarui."
 
@@ -144,7 +140,6 @@ jobs:
         run: |
           echo "Applying requested cherry-picks..."
           curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
-             echo "git am failed, falling back to patch..."
              curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
           }
 
@@ -279,7 +274,6 @@ jobs:
       - name: Compile
         working-directory: gki
         run: |
-          # Memastikan toolchain ada di PATH
           export PATH=$(pwd)/prebuilts-master/clang/host/linux-x86/${{ env.CLANG_VER }}/bin:$PATH
           LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
 
