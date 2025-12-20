@@ -80,15 +80,19 @@ jobs:
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
           echo "✅ SUSFS patched"
 
-      # --- PERBAIKAN RESMI: Menggunakan patch AIO untuk mengatasi undefined symbol ---
+      # --- PERBAIKAN KRUSIAL: Menggunakan patch AIO untuk mengatasi undefined symbol ---
       - name: Apply SUSFS AIO Patch (Fix for undefined symbol)
         working-directory: gki/common
         run: |
           echo "🩹 Applying SUSFS AIO patch to fix undefined symbols..."
           curl -o susfs_aio.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/72fc78cfb97b1566fc6582ba25655fc88e7b302b/wild/susfs_fix_patches/v2.0.0/Next-3.0.0-susfs-2.0.0-AIO.patch
-          patch -p1 < susfs_aio.patch
+          
+          # PERBAIKAN: Pindah ke direktori kernel sebelum menjalankan patch
+          cd kernel
+          patch -p1 < ../susfs_aio.patch
+          
           echo "✅ SUSFS AIO patch applied successfully."
-          rm -f susfs_aio.patch
+          rm -f ../susfs_aio.patch
 
       # ===============================================================
       # 4. PATCHING KERNEL (UMUM)
