@@ -26,13 +26,13 @@ jobs:
 
       - name: Setup Workspace
         run: |
-          echo "[1/15] Creating Workspace"
+          echo "[1/14] Creating Workspace"
           mkdir -p $KERNEL_SOURCE_DIR
           echo "[✓] Workspace $KERNEL_SOURCE_DIR created"
 
       - name: Install Dependencies
         run: |
-          echo "[2/15] Installing Dependencies"
+          echo "[2/14] Installing Dependencies"
           sudo apt update && sudo apt upgrade -y
           sudo apt install -y git curl repo build-essential bc bison flex libssl-dev \
             libelf-dev python3 python3-pip unzip zip rsync libncurses-dev lld ccache
@@ -40,7 +40,7 @@ jobs:
 
       - name: Setup Git Identity
         run: |
-          echo "[3/15] Setup git identity"
+          echo "[3/14] Setup git identity"
           git config --global user.email "kingfinix98@gmail.com"
           git config --global user.name "titit"
           echo "[✓] Setup completed"
@@ -48,21 +48,21 @@ jobs:
       - name: Init Kernel Source
         run: |
           cd $KERNEL_SOURCE_DIR
-          echo "[4/15] Init kernel source"
+          echo "[4/14] Init kernel source"
           repo init --depth=1 -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10
           echo "[✓] Repo init success"
 
       - name: Sync Kernel Source
         run: |
           cd $KERNEL_SOURCE_DIR
-          echo "[5/15] Sync kernel source"
+          echo "[5/14] Sync kernel source"
           repo --trace sync -c -j$(nproc --all) --no-tags --fail-fast
           echo "[✓] Sync completed"
 
       - name: Cherry-pick Upstream Rama
         run: |
           cd $COMMON_DIR
-          echo "[6/15] Upstream linux from Rama"
+          echo "[6/14] Upstream linux from Rama"
           git remote add rama https://github.com/ramabondanp/android_kernel_common-5.10.git
           git fetch -j12 rama
           git cherry-pick 2afc3cd 8f27b49 || echo "[!] Some commits may not apply cleanly"
@@ -83,25 +83,29 @@ jobs:
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
           echo "[✓] SUSFS patched"
 
-      - name: Apply New Hooks Patch
+      # --- Langkah yang diganti ---
+      - name: Apply Jonjeexe Manual Hook Script
+        working-directory: ${{ env.COMMON_DIR }}
         run: |
-          cd $COMMON_DIR
-          echo "[8/15] Apply Manual Hook"
-          cp $PATCH_DIR/hooks/syscall_hooks.patch .
-          patch -p1 -F 3 < syscall_hooks.patch
-          echo "[✓] Hook Applied"
-
-      - name: Apply Hide Stuff Patch
-        run: |
-          cd $COMMON_DIR
-          echo "[9/15] Apply Hide stuff patch"
-          cp $PATCH_DIR/69_hide_stuff.patch .
-          patch -p1 -F 3 < 69_hide_stuff.patch
-          echo "[✓] hide_stuff.patch Applied"
+          echo "[8/14] Apply Jonjeexe Manual Hook Script"
+          echo "🩹 Menerapkan patch manual hook dari Jonjeexe (FIXED PATH)..."
+          # Step 1: Clone repositori ke folder Patches di dalam direktori common
+          echo "➡️ Meng-clone https://github.com/Jonjeexe/Ksu_Patches.git ke folder Patches"
+          git clone https://github.com/Jonjeexe/Ksu_Patches.git Patches
+          
+          # Step 2: Download Patch.sh di direktori yang sama
+          echo "➡️ Mendownload Patch.sh"
+          curl -O https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/refs/heads/non-GKI/Patch.sh
+          
+          # Step 3: Mulai Patch dengan perintah bash
+          echo "➡️ Menjalankan patch dengan 'bash Patch.sh'"
+          bash Patch.sh
+          
+          echo "✅ Patch manual hook dari Jonjeexe selesai dijalankan."
 
       - name: Inline Patch module.c dan drm
         run: |
-          echo "[10/15] Disable warn and check valid clones"
+          echo "[9/14] Disable warn and check valid clones"
           sed -i '/pr_warn.*disagrees about version of symbol.*/,+1 s/.*/return 1;/' $COMMON_DIR/kernel/module.c
           sed -i '/^static int drm_atomic_check_valid_clones/,/^}/d' $COMMON_DIR/drivers/gpu/drm/drm_atomic_helper.c
           sed -i '/ret = drm_atomic_check_valid_clones/,/return ret;/d' $COMMON_DIR/drivers/gpu/drm/drm_atomic_helper.c
@@ -109,7 +113,7 @@ jobs:
 
       - name: Modified gki_defconfig
         run: |
-          echo "[11/15] Enable KSU SUSFS ETC Config"
+          echo "[10/14] Enable KSU SUSFS ETC Config"
           DEFCONFIG_FILE="$COMMON_DIR/${DEFCONFIG}"
           {
             echo "CONFIG_KSU=y"
@@ -149,14 +153,14 @@ jobs:
 
       - name: Disable check_defconfig
         run: |
-          echo "[12/15] Disable Check Defconfig"
+          echo "[11/14] Disable Check Defconfig"
           sed -i 's/check_defconfig//' $COMMON_DIR/build.config.gki
           echo "[✓] Disabled"
 
       - name: Set Kernel Name and Branding
         run: |
           cd $KERNEL_SOURCE_DIR
-          echo "[13/15] Set Kernel Brand"
+          echo "[12/14] Set Kernel Brand"
           echo "echo \"$BRAND\"" > ./common/scripts/setlocalversion
           chmod +x ./common/scripts/setlocalversion
 
@@ -168,13 +172,13 @@ jobs:
 
       - name: Install ccache
         run: |
-          echo "[14/15] Installing ccache"
+          echo "[13/14] Installing ccache"
           sudo apt update && sudo apt upgrade -y && sudo apt install -y ccache python3 git curl
           echo "[✓] Cacched installed"
 
       - name: Build Kernel
         run: |
-          echo "[15/15] Building kernel with ccache"
+          echo "[14/14] Building kernel with ccache"
           sed -i 's/BUILD_SYSTEM_DLKM=1/BUILD_SYSTEM_DLKM=0/' $COMMON_DIR/build.config.gki.aarch64
           sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' $COMMON_DIR/build.config.gki.aarch64
           sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' $COMMON_DIR/build.config.gki.aarch64
