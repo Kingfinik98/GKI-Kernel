@@ -66,14 +66,18 @@ jobs:
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
-          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
-          echo "➡️ Menambahkan KernelSU-Next"
-          # Menggunakan fork Anda sesuai dengan file yang diberikan
+          echo "🧩 Setup KernelSU-Next (Legacy)"
+          # Gunakan setup script dari fork Anda
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/KernelSU-Next/refs/heads/legacy/kernel/setup.sh" | bash -
-          echo "✅ KernelSU-Next added"
+          
+          echo "➡️ Fix Folder Drivers Makefile"
+          # PENTING: Mendaftarkan folder kernelsu ke sistem build
+          if ! grep -q "obj-\$(CONFIG_KSU) += kernelsu/" drivers/Makefile; then
+            echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
+          fi
+
           echo "➡️ Cloning susfs4ksu"
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
-          echo "✅ SUSFS berhasil diclone"
           echo "🩹 Patching susfs4ksu"
           susfs=sus/kernel_patches
           cp -r $susfs/fs .
@@ -127,7 +131,7 @@ jobs:
             echo "⚠️ git am failed. Aborting and falling back to force patch..."
             git am --abort
             patch -p1 --fuzz=3 < rama.patch || true
-            echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
+            echo "✅ Applied via patch -p1."
           fi
           rm rama.patch
 
@@ -150,7 +154,6 @@ jobs:
           echo "🛠️ Applying manual Stack Protector fix "
           sed -i '/config STACKPROTECTOR_PER_TASK/{n;s/def_bool y/bool "Stack Protector per task"\n\tdefault y/;}' arch/arm64/Kconfig
           echo "# CONFIG_STACKPROTECTOR_PER_TASK is not set" >> arch/arm64/configs/gki_defconfig
-          echo "✅ Stack Protector fix applied manually."
 
       - name: Patch module & DRM (Xiaomi Compat)
         working-directory: gki/common
@@ -159,7 +162,6 @@ jobs:
           sed -i '/pr_warn.*disagrees about version of symbol.*/,+1 s/.*/return 1;/' kernel/module.c
           sed -i '/^static int drm_atomic_check_valid_clones/,/^}/d' drivers/gpu/drm/drm_atomic_helper.c
           sed -i '/ret = drm_atomic_check_valid_clones/,/return ret;/d' drivers/gpu/drm/drm_atomic_helper.c
-          echo "✅ Perbaikan selesai"
 
       - name: Remove check_defconfig
         run: |
@@ -175,16 +177,15 @@ jobs:
           echo "⚙️ Menambahkan konfigurasi kernel"
           DEFCONFIG="arch/arm64/configs/gki_defconfig"
           cat >> $DEFCONFIG <<EOF
-          # Config - Tambahan untuk Performa Game
-          # ===============================================
+          
           # Konfigurasi KSU NEXT & SUSFS
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
-          CONFIG_KSU_HAS_MANUAL_HOOK=y # <-- PERBAIKAN: Tambahkan ini
           CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=n
+          
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
@@ -203,22 +204,17 @@ jobs:
           CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
           CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
           CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
-          # Add additional tmpfs config setting
+          
+          # Tambahan tmpfs & Optimasi
           CONFIG_TMPFS_XATTR=y
           CONFIG_TMPFS_POSIX_ACL=y
-          # Add additional config setting
           CONFIG_IP_NF_TARGET_TTL=y
           CONFIG_IP6_NF_TARGET_HL=y
           CONFIG_IP6_NF_MATCH_HL=y
-          # Add BBR Config
           CONFIG_TCP_CONG_ADVANCED=y
           CONFIG_TCP_CONG_BBR=y
           CONFIG_NET_SCH_FQ=y
-          CONFIG_TCP_CONG_BIC=n
-          CONFIG_TCP_CONG_WESTWOOD=n
-          CONFIG_TCP_CONG_HTCP=n
           CONFIG_DEFAULT_BBR=y
-          # Optimasi tambahan (Smooth & Responsiveness)
           CONFIG_HZ_300=y
           CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
           CONFIG_SCHED_TUNE=y
@@ -227,25 +223,19 @@ jobs:
           CONFIG_IOSCHED_BFQ=y
           CONFIG_BFQ_GROUP_IOSCHED=y
           CONFIG_ZRAM=y
-          CONFIG_ZRAM_WRITEBACK=y
           EOF
           
       # ===============================================================
       # 6. PATCHING MANUAL HOOK
       # ===============================================================
       - name: Apply scope_min_manual_hooks_v1.6.patch
-        working-directory: gki
+        working-directory: gki/common
         run: |
           echo "🩹 Menerapkan scope_min_manual_hooks_v1.6.patch..."
-          cd common
           curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
-          
-          echo "Menerapkan patch dengan patch --fuzz=3..."
           patch -p1 --fuzz=3 < scope_min_manual_hooks_v1.6.patch
-          
-          echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
           rm -f scope_min_manual_hooks_v1.6.patch
-
+          
       # ===============================================================
       # 7. PERSIAPAN BUILD AKHIR
       # ===============================================================
@@ -253,18 +243,9 @@ jobs:
         working-directory: gki/common
         run: |
           echo "" > scripts/setlocalversion
-          chmod +x scripts/setlocalversion
-          
           KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
           if [ -n "$KERNEL_NAME" ]; then
-             echo "Setting custom kernel name: $KERNEL_NAME"
-             if grep -q '^EXTRAVERSION *=' Makefile; then
-               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
-             else
-               echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
-             fi
-          else
-             echo "Kernel name input is empty. Skipping custom name (Using Default)."
+             sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
           fi
 
       - name: Setup Clang
@@ -284,7 +265,6 @@ jobs:
           mkdir -p prebuilts-master/clang/host/linux-x86/$CLANG_VER
           cd prebuilts-master/clang/host/linux-x86
           curl -L "${CLANG_URL}" | tar -xz -C $CLANG_VER
-          rm -rf clang-r416183b
           ln -sf $CLANG_VER clang-r416183b
 
       - name: Commit changes
@@ -299,6 +279,8 @@ jobs:
       - name: Compile
         working-directory: gki
         run: |
+          # Memastikan toolchain ada di PATH
+          export PATH=$(pwd)/prebuilts-master/clang/host/linux-x86/${{ env.CLANG_VER }}/bin:$PATH
           LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
 
       - name: Upload Artifact
@@ -312,10 +294,7 @@ jobs:
       - name: Push to PixelDrain
         if: always() 
         run: |
-          if [ -f gki/out/android12-5.10/common/arch/arm64/boot/Image ]; then
-            curl -u :cf8ac774-486a-4775-9028-e7f134fcafc8 \
-              -F file=@gki/out/android12-5.10/common/arch/arm64/boot/Image \
-              https://pixeldrain.com/api/file
-          else
-            echo "Image file not found. Build likely failed."
+          IMG="gki/out/android12-5.10/common/arch/arm64/boot/Image"
+          if [ -f "$IMG" ]; then
+            curl -u :cf8ac774-486a-4775-9028-e7f134fcafc8 -F file=@$IMG https://pixeldrain.com/api/file
           fi
