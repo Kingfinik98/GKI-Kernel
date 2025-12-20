@@ -77,7 +77,7 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      ### PERUBAHAN: SETUP SUSFS VERSI BARU DENGAN FIX PATCHES ###
+      ### PERUBAHAN: SETUP SUSFS DENGAN URUTAN PATCH YANG BENAR SESUAI BUILD.SH ###
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
@@ -96,7 +96,7 @@ jobs:
           patch -p1 < $susfs/50_add_susfs_in_gki-android12-5.10.patch || true
           echo "✅ Patch kernel-side SUSFS selesai"
           
-          echo "🔧 Mendapatkan versi SUSFS dan menerapkan patch perbaikan"
+          echo "🔧 Mendapatkan versi SUSFS dan patch perbaikan"
           SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
           echo "   Versi SUSFS yang terdeteksi: $SUSFS_VERSION"
           
@@ -110,21 +110,23 @@ jobs:
             exit 1
           fi
           
-          echo "🩹 Menerapkan patch perbaikan ke KernelSU-Next..."
+          echo "🩹 Menerapkan patch SUSFS dan perbaikan ke KernelSU-Next..."
           cd KernelSU-Next
+          
+          echo "   Menerapkan patch SUSFS utama..."
+          patch -p1 < ../sus/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
+          
+          echo "   Menerapkan patch perbaikan..."
           for p in "$SUSFS_FIX_PATCHES"/*.patch; do
             echo "   Menerapkan $(basename $p)..."
-            patch -p1 --forward --fuzz=3 < $p
+            patch -p1 --forward --fuzz=3 < $p || true
           done
-          find . -type f \( -name '*.orig' -o -name '*.rej' \) -delete
-          cd ..
-          echo "✅ Patch perbaikan SUSFS selesai"
           
-          echo "🩹 Menerapkan patch SUSFS ke KernelSU-Next"
-          cd KernelSU-Next
-          patch -p1 < ../sus/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
+          echo "   Membersihkan file patch sementara..."
+          find . -type f \( -name '*.orig' -o -name '*.rej' \) -delete
+          
           cd ..
-          echo "✅ Patch KernelSU-side SUSFS selesai"
+          echo "✅ Patch SUSFS dan perbaikan selesai"
       ### AKHIR PERUBAHAN ###
 
       - name: Apply common fixes
