@@ -83,21 +83,7 @@ jobs:
           patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
           echo "[✓] SUSFS patched"
 
-      # --- Langkah yang diganti ---
-      - name: Apply scope_min_manual_hooks_v1.6.patch
-        working-directory: ${{ env.KERNEL_SOURCE_DIR }}
-        run: |
-          echo "[8/14] Apply scope_min_manual_hooks_v1.6.patch"
-          echo "🩹 Menerapkan scope_min_manual_hooks_v1.6.patch..."
-          cd common
-          curl -o scope_min_manual_hooks_v1.6.patch https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/scope_min_manual_hooks_v1.6.patch
-          
-          echo "Menerapkan patch dengan patch --fuzz=3..."
-          patch -p1 --fuzz=3 < scope_min_manual_hooks_v1.6.patch
-          
-          echo "✅ Patch scope_min_manual_hooks_v1.6.patch berhasil diterapkan."
-          rm -f scope_min_manual_hooks_v1.6.patch
-
+     
       - name: Inline Patch module.c dan drm
         run: |
           echo "[9/14] Disable warn and check valid clones"
