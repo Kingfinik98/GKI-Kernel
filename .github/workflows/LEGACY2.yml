@@ -77,6 +77,25 @@ jobs:
         run: |
           sed -i '2d' gki/common/build.config.gki
 
+      # --- URUTAN DIPERBAIKI: Manual Hook dipindahkan ke sini ---
+      - name: Apply Jonjeexe Manual Hook Script
+        working-directory: gki/common
+        run: |
+          echo "🩹 Menerapkan patch manual hook dari Jonjeexe (DIPERBAIKI)..."
+          # Step 1: Clone repositori ke folder Patches di dalam direktori common
+          echo "➡️ Meng-clone https://github.com/Jonjeexe/Ksu_Patches.git ke folder Patches"
+          git clone https://github.com/Jonjeexe/Ksu_Patches.git Patches
+          
+          # Step 2: Download Patch.sh di direktori yang sama
+          echo "➡️ Mendownload Patch.sh"
+          curl -O https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/refs/heads/non-GKI/Patch.sh
+          
+          # Step 3: Mulai Patch dengan perintah bash
+          echo "➡️ Menjalankan patch dengan 'bash Patch.sh'"
+          bash Patch.sh
+          
+          echo "✅ Patch manual hook dari Jonjeexe selesai dijalankan."
+
       - name: Setup KernelSU-Next
         working-directory: gki/common
         run: |
@@ -162,24 +181,6 @@ jobs:
           CONFIG_ZRAM=y
           CONFIG_ZRAM_WRITEBACK=y
           EOF
-
-      - name: Apply Jonjeexe Manual Hook Script
-        working-directory: gki/common
-        run: |
-          echo "🩹 Menerapkan patch manual hook dari Jonjeexe (FIXED PATH)..."
-          # Step 1: Clone repositori ke folder Patches di dalam direktori common
-          echo "➡️ Meng-clone https://github.com/Jonjeexe/Ksu_Patches.git ke folder Patches"
-          git clone https://github.com/Jonjeexe/Ksu_Patches.git Patches
-          
-          # Step 2: Download Patch.sh di direktori yang sama
-          echo "➡️ Mendownload Patch.sh"
-          curl -O https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/refs/heads/non-GKI/Patch.sh
-          
-          # Step 3: Mulai Patch dengan perintah bash
-          echo "➡️ Menjalankan patch dengan 'bash Patch.sh'"
-          bash Patch.sh
-          
-          echo "✅ Patch manual hook dari Jonjeexe selesai dijalankan."
 
       - name: Set version
         working-directory: gki/common
