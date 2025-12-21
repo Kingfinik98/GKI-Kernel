@@ -79,19 +79,19 @@ jobs:
       - name: Setup Upstream Rama and KernelSU
         working-directory: gki/common
         run: |
-          # Upstream to 5.10.248 logic
+          # Upstream ke 5.10.248
           git remote add rama https://github.com/ramabondanp/android_kernel_common-5.10.git
           git fetch -j12 rama
           git checkout -b update-5.10.248 rama/android12-5.10
-          
-          # Clone KernelSU dari Rama
+
+          # Clone KernelSU
           echo "🧩 Mengatur KernelSU Repository"
           rm -rf drivers/staging/kernelsu
           git clone https://github.com/ramabondanp/KernelSU.git -b main drivers/staging/kernelsu
-          
-          # Tambahkan dukungan MamboSU Manager
+
+          # Patch MamboSU Manager (KERNEL CORE PATCH)
           echo "🔧 Menambahkan dukungan MamboSU Manager"
-          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/ksu/rksu-add-mambosu-manager-support.patch" | patch -p1 -d drivers/staging/kernelsu
+          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/ksu/rksu-add-mambosu-manager-support.patch" | patch -p1
           echo "✅ Patch MamboSU Manager diterapkan"
 
       - name: Apply Compatibility Patches
