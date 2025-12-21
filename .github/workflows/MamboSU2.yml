@@ -89,9 +89,11 @@ jobs:
           rm -rf drivers/staging/kernelsu
           git clone https://github.com/ramabondanp/KernelSU.git -b main drivers/staging/kernelsu
 
-          # Patch MamboSU Manager (KERNEL CORE PATCH)
+          # Patch MamboSU Manager (PATCH DI KERNELSU DIRECTORY)
           echo "🔧 Menambahkan dukungan MamboSU Manager"
+          cd drivers/staging/kernelsu
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/ksu/rksu-add-mambosu-manager-support.patch" | patch -p1
+          cd ../../
           echo "✅ Patch MamboSU Manager diterapkan"
 
       - name: Apply Compatibility Patches
