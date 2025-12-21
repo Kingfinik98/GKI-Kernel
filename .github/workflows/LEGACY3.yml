@@ -109,9 +109,9 @@ jobs:
             cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
             patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
             
-            # Fix for kernel 5.10: Add kstat.h include to susfs.h
-            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue"
-            sed -i '1i#include <linux/kstat.h>' include/linux/susfs.h
+            # Fix for kernel 5.10: Add stat.h include to susfs.h
+            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue (using stat.h)"
+            sed -i '1i#include <linux/stat.h>' include/linux/susfs.h
             
             echo "✅ SUSFS patched"
           else
