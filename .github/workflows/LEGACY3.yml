@@ -61,25 +61,13 @@ jobs:
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
 
-      - name: Apply Rama patch
-        working-directory: gki/common
+      - name: Update kernel source for GKI 5.10
         run: |
-          echo "Downloading commit 881fa16..."
-          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/881fa16.patch" -o rama.patch
-          
-          echo "Attempting git am..."
-          if git am -3 < rama.patch; then
-            echo "✅ git am succeeded."
-          else
-            echo "⚠️ git am failed. Aborting and falling back to force patch..."
-            git am --abort
-            
-            # Apply patch, allow partial failure (skipped hunks are fine)
-            patch -p1 --fuzz=3 < rama.patch || true
-            
-            echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
-          fi
-          rm rama.patch
+          cd gki/common
+          git remote add kingfinik98 https://github.com/Kingfinik98/kernel-android12-5.10.git
+          git fetch kingfinik98
+          git checkout -b android12-5.10 kingfinik98/android12-5.10
+          git branch -D common-android12-5.10
 
       - name: Tweak build config
         run: |
@@ -121,6 +109,11 @@ jobs:
             cp -r $susfs/include .
             cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
             patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
+            
+            # Fix for kernel 5.10: Add kstat.h include to susfs.h
+            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue"
+            sed -i '1i#include <linux/kstat.h>' include/linux/susfs.h
+            
             echo "✅ SUSFS patched"
           else
             echo "➡️ Menggunakan kprobes biasa"
@@ -132,11 +125,8 @@ jobs:
         run: |
           echo "Applying requested cherry-picks..."
           
-          # Patch 1: Common 5.10 update/fix
-          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
-             echo "git am failed, falling back to patch..."
-             curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
-          }
+          # Apply any necessary fixes for the new kernel source
+          echo "Applying fixes for Kingfinik98 kernel source..."
 
       - name: Fix Stack Protector
         working-directory: gki/common
