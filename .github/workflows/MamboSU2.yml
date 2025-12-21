@@ -76,27 +76,23 @@ jobs:
           rm -rf clang-r416183b
           ln -sf $CLANG_VER clang-r416183b
 
-      - name: Setup Upstream Rama update 
+      - name: Setup Upstream Rama and KernelSU
         working-directory: gki/common
         run: |
-          # Upstream to 5.10.246 logic
+          # Upstream to 5.10.248 logic
           git remote add rama https://github.com/ramabondanp/android_kernel_common-5.10.git
           git fetch -j12 rama
           git checkout -b update-5.10.248 rama/android12-5.10
           
-      - name: Setup MamboSU Repository
-        working-directory: gki/common
-        run: |
-          echo "🧩 Mengatur MamboSU Repository"
-          rm -rf drivers/staging/kernelsu 
+          # Clone KernelSU dari Rama
+          echo "🧩 Mengatur KernelSU Repository"
+          rm -rf drivers/staging/kernelsu
+          git clone https://github.com/ramabondanp/KernelSU.git -b main drivers/staging/kernelsu
           
-      - name: Setup MamboSU SuSFS Hook
-        working-directory: gki/common
-        run: |
-          echo "🧩 Menambahkan MamboSU Susfs Hook"
-          # Pastikan menggunakan skrip setup dari MamboSU
-          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/MamboSU/refs/heads/master/kernel/setup.sh" | bash -s master
-          echo "✅ MamboSU added"
+          # Tambahkan dukungan MamboSU Manager
+          echo "🔧 Menambahkan dukungan MamboSU Manager"
+          curl -LSs "https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/ksu/rksu-add-mambosu-manager-support.patch" | patch -p1 -d drivers/staging/kernelsu
+          echo "✅ Patch MamboSU Manager diterapkan"
 
       - name: Apply Compatibility Patches
         working-directory: gki/common
