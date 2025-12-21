@@ -65,9 +65,8 @@ jobs:
         run: |
           cd gki/common
           git remote add kingfinik98 https://github.com/Kingfinik98/kernel-android12-5.10.git
-          git fetch kingfinik98
-          git checkout -b android12-5.10 kingfinik98/android12-5.10
-          git branch -D common-android12-5.10
+          git fetch -j12 kingfinik98
+          git checkout -b update-mglru kingfinik98/mglru
 
       - name: Tweak build config
         run: |
