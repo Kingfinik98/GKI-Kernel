@@ -88,9 +88,7 @@ jobs:
         working-directory: gki/common
         run: |
           echo "🧩 Mengatur MamboSU Repository"
-          rm -rf drivers/staging/kernelsu
-          # Gunakan repositori MamboSU yang benar
-          git clone https://github.com/Kingfinik98/MamboSU.git -b master drivers/staging/kernelsu
+          rm -rf drivers/staging/kernelsu 
           
       - name: Setup MamboSU SuSFS Hook
         working-directory: gki/common
