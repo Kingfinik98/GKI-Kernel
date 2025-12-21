@@ -244,17 +244,6 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
 
-      - name: Apply JackA1ltman Syscall Hook Script
-        working-directory: gki
-        run: |
-          echo "🩹 Menerapkan patch hook syscall dari JackA1ltman..."
-          cd common
-          curl -o syscall_hook_patches.sh https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh
-          chmod +x syscall_hook_patches.sh
-          ./syscall_hook_patches.sh
-          echo "✅ Syscall hook script dari JackA1ltman berhasil dijalankan."
-          rm -f syscall_hook_patches.sh
-
       - name: Set version
         working-directory: gki/common
         run: |
