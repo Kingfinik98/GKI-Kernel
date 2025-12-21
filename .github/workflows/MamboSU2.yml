@@ -82,17 +82,21 @@ jobs:
           # Upstream to 5.10.246 logic
           git remote add rama https://github.com/ramabondanp/android_kernel_common-5.10.git
           git fetch -j12 rama
-          git checkout -b update-5.10.247 rama/android12-5.10-staging
+          git checkout -b update-5.10.248 rama/android12-5.10
           
-          # Setup MamboSU - Part 1: Clone Repository
+      - name: Setup MamboSU Repository
+        working-directory: gki/common
+        run: |
           echo "🧩 Mengatur MamboSU Repository"
           rm -rf drivers/staging/kernelsu
-          git clone https://github.com/ramabondanp/KernelSU.git -b main drivers/staging/kernelsu
+          # Gunakan repositori MamboSU yang benar
+          git clone https://github.com/Kingfinik98/MamboSU.git -b master drivers/staging/kernelsu
           
       - name: Setup MamboSU SuSFS Hook
         working-directory: gki/common
         run: |
           echo "🧩 Menambahkan MamboSU Susfs Hook"
+          # Pastikan menggunakan skrip setup dari MamboSU
           curl -LSs "https://raw.githubusercontent.com/Kingfinik98/MamboSU/refs/heads/master/kernel/setup.sh" | bash -s master
           echo "✅ MamboSU added"
 
