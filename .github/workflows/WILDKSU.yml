@@ -90,10 +90,10 @@ jobs:
               rm -rf $KSU_PATH
             fi
           done
-          echo "✅ Existing KernelSU drivers removed"
+          echo "✅ Existing wild drivers removed"
           
-          echo "➡️ Menambahkan KernelSU-Next"
-          curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/wild-susfs/kernel/setup.sh" | bash -s wild-susfs
+          echo "➡️ Menambahkan wild ksu
+          curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
           echo "✅ KernelSU-Next added"
           
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
