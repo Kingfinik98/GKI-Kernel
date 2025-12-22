@@ -66,7 +66,7 @@ jobs:
           cd gki/common
           git remote add kingfinik98 https://github.com/Kingfinik98/kernel-android12-5.10.git
           git fetch -j12 kingfinik98
-          git checkout -b update-mglru kingfinik98/mglru
+          git checkout -b update-master kingfinik98/master
 
       # =================================================================
       # AWAL: LANGKAH PATCH PERFORMA (DI TEMPATKAN DI SINI)
@@ -246,8 +246,7 @@ jobs:
           CONFIG_TCP_CONG_WESTWOOD=n
           CONFIG_TCP_CONG_HTCP=n
           CONFIG_DEFAULT_BBR=y
-          # Optimasi tambahan (Smooth & Responsiveness)
-          CONFIG_HZ_300=y
+          # Optimasi tambahan (Smooth & Responsive Ness 
           CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
           CONFIG_SCHED_TUNE=y
           CONFIG_MQ_IOSCHED_KYBER=y
