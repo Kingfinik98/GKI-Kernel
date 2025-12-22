@@ -237,7 +237,7 @@ jobs:
         working-directory: gki
         run: |
           echo "Applying cleaned manual hook v1.6 patch..."
-          curl -s https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.6.patch \
+          curl -s https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.4.patch \
             | sed 's/\r$//' \
             | awk '{print} END{print ""}' \
             | patch -p1 -d common
