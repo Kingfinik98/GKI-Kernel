@@ -99,14 +99,14 @@ jobs:
           CLOSING_BRACE_LINE=$(tail -n +$((LAST_OPP_LINE + 1)) "$DTSI_FILE" | grep -n "^[[:space:]]*};" | head -1 | cut -d: -f1)
           TARGET_LINE=$((LAST_OPP_LINE + CLOSING_BRACE_LINE))
 
-          # Create a temporary file with the new OPP entry (using a clean heredoc)
+          # Create a temporary file with the new OPP entry (this avoids YAML escaping issues)
           cat <<'EOF' > /tmp/opp_patch.txt
         opp-1050000000 {
             opp-hz = /bits/ 64 <1050000000>;
             opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
             opp-peak-kBps = <10752000>;
         };
-          EOF
+EOF
 
           # Insert the new OPP entry from the temporary file into the DTSI
           sed -i "${TARGET_LINE}r /tmp/opp_patch.txt" "$DTSI_FILE"
@@ -115,7 +115,6 @@ jobs:
           rm /tmp/opp_patch.txt
 
           echo "✅ GPU Overclock to 1050 MHz patch applied to $DTSI_FILE"
-          echo "✅ GPU Overclock 1050 MHz applied"
       # =================================================================
       # END OF PERFORMANCE PATCHES SECTION
       # =================================================================
@@ -175,7 +174,6 @@ jobs:
         working-directory: gki/common
         run: |
           echo "Applying requested cherry-picks..."
-          
           # Apply any necessary fixes for new kernel source
           echo "Applying fixes for Kingfinik98 kernel source..."
 
