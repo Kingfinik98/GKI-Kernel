@@ -68,9 +68,6 @@ jobs:
           git fetch -j12 kingfinik98
           git checkout -b update-master kingfinik98/master
 
-      # =================================================================
-      # PERFORMANCE PATCHES SECTION
-      # =================================================================
       - name: Apply Qualcomm CPUFreq HW Performance Patch (Marble)
         working-directory: gki/common
         run: |
@@ -94,25 +91,15 @@ jobs:
           echo "🚀 Applying GPU Overclock to 1050 MHz for Xiaomi Marble"
           DTSI_FILE="arch/arm64/boot/dts/qcom/sdm845.dtsi"
 
+          # Find the line number of the closing brace of the last OPP entry
           LAST_OPP_LINE=$(grep -n "opp-[0-9]*000000 {" "$DTSI_FILE" | tail -1 | cut -d: -f1)
           CLOSING_BRACE_LINE=$(tail -n +$((LAST_OPP_LINE + 1)) "$DTSI_FILE" | grep -n "^[[:space:]]*};" | head -1 | cut -d: -f1)
           TARGET_LINE=$((LAST_OPP_LINE + CLOSING_BRACE_LINE))
 
-          cat <<'EOF' > /tmp/opp_patch.txt
-          opp-1050000000 {
-                  opp-hz = /bits/ 64 <1050000000>;
-                  opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
-                  opp-peak-kBps = <10752000>;
-          };
-EOF
-
-          sed -i "${TARGET_LINE}r /tmp/opp_patch.txt" "$DTSI_FILE"
-          rm /tmp/opp_patch.txt
+          # Use printf and process substitution for a clean, one-line insertion
+          sed -i "${TARGET_LINE}r /dev/stdin" "$DTSI_FILE" <<< "$(printf '\t\topp-1050000000 {\n\t\t\t\topp-hz = /bits/ 64 <1050000000>;\n\t\t\t\topp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;\n\t\t\t\topp-peak-kBps = <10752000>;\n\t\t};')"
 
           echo "✅ GPU Overclock to 1050 MHz patch applied to $DTSI_FILE"
-      # =================================================================
-      # END OF PERFORMANCE PATCHES SECTION
-      # =================================================================
 
       - name: Tweak build config
         run: |
@@ -122,28 +109,19 @@ EOF
         working-directory: gki/common
         run: |
           echo "🧩 Setup KernelSU-Next dan Hook Method"
-          
-          # Remove existing KernelSU drivers first
-          echo "🧹 Removing existing KernelSU drivers..."
           for KSU_PATH in drivers/staging/kernelsu drivers/kernelsu KernelSU; do
             if [ -d $KSU_PATH ]; then
-              echo "KernelSU driver found in $KSU_PATH, Removing..."
               KSU_DIR=$(dirname "$KSU_PATH")
-
               [ -f "$KSU_DIR/Kconfig" ] && sed -i '/kernelsu/d' $KSU_DIR/Kconfig
               [ -f "$KSU_DIR/Makefile" ] && sed -i '/kernelsu/d' $KSU_DIR/Makefile
-
               rm -rf $KSU_PATH
             fi
           done
           echo "✅ Existing KernelSU drivers removed"
-          
           echo "➡️ Menambahkan KernelSU-Next"
           curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
           echo "✅ KernelSU-Next added"
-          
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
-          
           if [ "$HOOK_METHOD" = "susfs" ]; then
             echo "➡️ Cloning susfs4ksu (versi baru)"
             git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
@@ -154,11 +132,7 @@ EOF
             cp -r $susfs/include .
             cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
             patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-            
-            # Fix for kernel 5.10: Add stat.h include to susfs.h
-            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue (using stat.h)"
             sed -i '1i#include <linux/stat.h>' include/linux/susfs.h
-            
             echo "✅ SUSFS patched"
           else
             echo "➡️ Menggunakan kprobes biasa"
@@ -168,24 +142,18 @@ EOF
       - name: Apply common fixes
         working-directory: gki/common
         run: |
-          echo "Applying requested cherry-picks..."
-          # Apply any necessary fixes for new kernel source
           echo "Applying fixes for Kingfinik98 kernel source..."
 
       - name: Fix Stack Protector
         working-directory: gki/common
         run: |
-          echo "🛠️ Applying manual Stack Protector fix "
-          # 1. Edit arch/arm64/Kconfig
           sed -i '/config STACKPROTECTOR_PER_TASK/{n;s/def_bool y/bool "Stack Protector per task"\n\tdefault y/;}' arch/arm64/Kconfig
-          # 2. Disable di gki_defconfig
           echo "# CONFIG_STACKPROTECTOR_PER_TASK is not set" >> arch/arm64/configs/gki_defconfig
           echo "✅ Stack Protector fix applied manually."
 
       - name: Patch module & DRM (Xiaomi Compat)
         working-directory: gki/common
         run: |
-          echo "🩹 [9/10] Menerapkan patch kompatibilitas untuk perangkat Xiaomi"
           sed -i '/pr_warn.*disagrees about version of symbol.*/,+1 s/.*/return 1;/' kernel/module.c
           sed -i '/^static int drm_atomic_check_valid_clones/,/^}/d' drivers/gpu/drm/drm_atomic_helper.c
           sed -i '/ret = drm_atomic_check_valid_clones/,/return ret;/d' drivers/gpu/drm/drm_atomic_helper.c
@@ -193,7 +161,6 @@ EOF
 
       - name: Remove check_defconfig
         run: |
-          echo "🧹 [Clean-Up] Deleting check_defconfig"
           sed -i 's/check_defconfig//' gki/common/build.config.gki
 
       - name: Inject All Kernel Configs
@@ -201,27 +168,20 @@ EOF
         run: |
           echo "⚙️ Menambahkan konfigurasi kernel"
           DEFCONFIG="arch/arm64/configs/gki_defconfig"
-          
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
-          
-          cat >> $DEFCONFIG <<EOF
-          # Config - Tambahan untuk Performa Game
-          # ===============================================
-          # Konfigurasi KSU NEXT
-          # Add KSU configuration settings
+          cat >> $DEFCONFIG <<'EOF'
+          # KSU NEXT
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
           CONFIG_KSU_MANUAL_HOOK=y
           CONFIG_KSU_HAS_MANUAL_HOOK=y
           EOF
-          
           if [ "$HOOK_METHOD" = "susfs" ]; then
-            cat >> $DEFCONFIG <<EOF
-          # SUSFS Hook Method
+            cat >> $DEFCONFIG <<'EOF'
+          # SUSFS
           CONFIG_KSU_SYSCALL_HOOK=n
           CONFIG_KSU_KPROBES_HOOK=n
-          # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
           CONFIG_KSU_SUSFS_SUS_PATH=y
@@ -241,24 +201,20 @@ EOF
           CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
           EOF
           else
-            cat >> $DEFCONFIG <<EOF
-          # Kprobes Hook Method
+            cat >> $DEFCONFIG <<'EOF'
+          # Kprobes
           CONFIG_KSU_SYSCALL_HOOK=y
           CONFIG_KSU_KPROBES_HOOK=y
-          # Disable SUSFS for kprobes method
           CONFIG_KSU_SUSFS=n
           EOF
           fi
-          
-          cat >> $DEFCONFIG <<EOF
-          # Add additional tmpfs config setting
+          cat >> $DEFCONFIG <<'EOF'
+          # Additional Settings
           CONFIG_TMPFS_XATTR=y
           CONFIG_TMPFS_POSIX_ACL=y
-          # Add additional config setting
           CONFIG_IP_NF_TARGET_TTL=y
           CONFIG_IP6_NF_TARGET_HL=y
           CONFIG_IP6_NF_MATCH_HL=y
-          # Add BBR Config
           CONFIG_TCP_CONG_ADVANCED=y
           CONFIG_TCP_CONG_BBR=y
           CONFIG_NET_SCH_FQ=y
@@ -266,7 +222,6 @@ EOF
           CONFIG_TCP_CONG_WESTWOOD=n
           CONFIG_TCP_CONG_HTCP=n
           CONFIG_DEFAULT_BBR=y
-          # Optimasi tambahan (Smooth & Responsiveness)
           CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
           CONFIG_SCHED_TUNE=y
           CONFIG_MQ_IOSCHED_KYBER=y
@@ -282,25 +237,15 @@ EOF
         run: |
           echo "" > scripts/setlocalversion
           chmod +x scripts/setlocalversion
-          
           KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
-
           if [ -n "$KERNEL_NAME" ]; then
              if [ "$HOOK_METHOD" = "susfs" ]; then
                echo "Setting custom kernel name: $KERNEL_NAME-SUSFS"
-               if grep -q '^EXTRAVERSION *=' Makefile; then
-                 sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME-SUSFS/" Makefile
-               else
-                 echo "EXTRAVERSION = -$KERNEL_NAME-SUSFS" >> Makefile
-               fi
+               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME-SUSFS/" Makefile || echo "EXTRAVERSION = -$KERNEL_NAME-SUSFS" >> Makefile
              else
                echo "Setting custom kernel name: $KERNEL_NAME-KPROBES"
-               if grep -q '^EXTRAVERSION *=' Makefile; then
-                 sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME-KPROBES/" Makefile
-               else
-                 echo "EXTRAVERSION = -$KERNEL_NAME-KPROBES" >> Makefile
-               fi
+               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME-KPROBES/" Makefile || echo "EXTRAVERSION = -$KERNEL_NAME-KPROBES" >> Makefile
              fi
           else
              echo "Kernel name input is empty. Skipping custom name (Using Default)."
@@ -310,23 +255,17 @@ EOF
         working-directory: gki
         run: |
           mkdir -p prebuilts-master/clang/host/linux-x86
-          
           if [ "${{ github.event.inputs.clang_version }}" == "r536225 (Clang 19)" ]; then
-            echo "Setting up Clang-19 (r536225)..."
             CLANG_VER="clang-r536225"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel-2025/clang-r536225.tar.gz"
           else
-            echo "Setting up Clang-20 (r547379)..."
             CLANG_VER="clang-r547379"
             CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/62cdcefa89e31af2d72c366e8b5ef8db84caea62/clang-r547379.tar.gz"
           fi
-          
           echo "CLANG_VER=$CLANG_VER" >> $GITHUB_ENV
-
           mkdir -p prebuilts-master/clang/host/linux-x86/$CLANG_VER
           cd prebuilts-master/clang/host/linux-x86
           curl -L "${CLANG_URL}" | tar -xz -C $CLANG_VER
-          
           rm -rf clang-r416183b
           ln -sf $CLANG_VER clang-r416183b
 
