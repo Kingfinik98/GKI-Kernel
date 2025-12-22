@@ -1,4 +1,4 @@
-# WildKSU
+# WILD KSU SUSFS
 
 on:
   workflow_dispatch:
@@ -15,6 +15,14 @@ on:
         options:
           - 'r536225 (Clang 19)'
           - 'r547379 (Clang 20)'
+      hook_method:
+        description: 'Select Hook Method'
+        required: true
+        type: choice
+        default: 'susfs'
+        options:
+          - 'susfs'
+          - 'kprobes'
 
 jobs:
   build:
@@ -38,7 +46,7 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --global user.name "boltx"
+          git config --global user.name "titit"
           git config --global user.email "Kingfinik98@gmail.com"
 
       - name: Install build tools
@@ -53,58 +61,71 @@ jobs:
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10 --depth=1
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch -j$(nproc --all)
 
-      - name: Apply Rama patch
-        working-directory: gki/common
+      - name: Update kernel source for GKI 5.10
         run: |
-          echo "Downloading commit 881fa16..."
-          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/881fa16.patch" -o rama.patch
-          
-          echo "Attempting git am..."
-          if git am -3 < rama.patch; then
-            echo "✅ git am succeeded."
-          else
-            echo "⚠️ git am failed. Aborting and falling back to force patch..."
-            git am --abort
-            
-            # Apply patch, allow partial failure (skipped hunks are fine)
-            patch -p1 --fuzz=3 < rama.patch || true
-            
-            echo "✅ Applied via patch -p1 (Conflicts/Duplicates ignored)."
-          fi
-          rm rama.patch
+          cd gki/common
+          git remote add kingfinik98 https://github.com/Kingfinik98/kernel-android12-5.10.git
+          git fetch -j12 kingfinik98
+          git checkout -b update-mglru kingfinik98/mglru
 
       - name: Tweak build config
         run: |
           sed -i '2d' gki/common/build.config.gki
 
-      - name: Setup KernelSU-Next & SUSFS
+      - name: Setup KernelSU-Next & Hook Method
         working-directory: gki/common
         run: |
-          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
+          echo "🧩 Setup KernelSU-Next dan Hook Method"
+          
+          # Remove existing KernelSU drivers first
+          echo "🧹 Removing existing KernelSU drivers..."
+          for KSU_PATH in drivers/staging/kernelsu drivers/kernelsu KernelSU; do
+            if [ -d $KSU_PATH ]; then
+              echo "KernelSU driver found in $KSU_PATH, Removing..."
+              KSU_DIR=$(dirname "$KSU_PATH")
+
+              [ -f "$KSU_DIR/Kconfig" ] && sed -i '/kernelsu/d' $KSU_DIR/Kconfig
+              [ -f "$KSU_DIR/Makefile" ] && sed -i '/kernelsu/d' $KSU_DIR/Makefile
+
+              rm -rf $KSU_PATH
+            fi
+          done
+          echo "✅ Existing KernelSU drivers removed"
+          
           echo "➡️ Menambahkan KernelSU-Next"
-          curl -LSs https://raw.githubusercontent.com/WildKernels/Wild_KSU/refs/heads/susfs-legacy/kernel/setup.sh | bash
+          curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/wild-susfs/kernel/setup.sh" | bash -s wild-susfs
           echo "✅ KernelSU-Next added"
-          echo "➡️ Cloning susfs4ksu"
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
-          echo "✅ SUSFS berhasil diclone"
-          echo "🩹 Patching susfs4ksu"
-          susfs=sus/kernel_patches
-          cp -r $susfs/fs .
-          cp -r $susfs/include .
-          cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-          echo "✅ SUSFS patched"
+          
+          HOOK_METHOD="${{ github.event.inputs.hook_method }}"
+          
+          if [ "$HOOK_METHOD" = "susfs" ]; then
+            echo "➡️ Cloning susfs4ksu (versi baru)"
+            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
+            echo "✅ SUSFS berhasil diclone"
+            echo "🩹 Patching susfs4ksu"
+            susfs=sus/kernel_patches
+            cp -r $susfs/fs .
+            cp -r $susfs/include .
+            cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
+            patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
+            
+            # Fix for kernel 5.10: Add stat.h include to susfs.h
+            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue (using stat.h)"
+            sed -i '1i#include <linux/stat.h>' include/linux/susfs.h
+            
+            echo "✅ SUSFS patched"
+          else
+            echo "➡️ Menggunakan kprobes biasa"
+            echo "✅ Kprobes setup selesai"
+          fi
 
       - name: Apply common fixes
         working-directory: gki/common
         run: |
           echo "Applying requested cherry-picks..."
           
-          # Patch 1: Common 5.10 update/fix
-          curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | git am -3 || {
-             echo "git am failed, falling back to patch..."
-             curl -L "https://github.com/ramabondanp/android_kernel_common-5.10/commit/4fe04b60009e.patch" | patch -p1
-          }
+          # Apply any necessary fixes for the new kernel source
+          echo "Applying fixes for Kingfinik98 kernel source..."
 
       - name: Fix Stack Protector
         working-directory: gki/common
@@ -130,19 +151,31 @@ jobs:
           echo "🧹 [Clean-Up] Deleting check_defconfig"
           sed -i 's/check_defconfig//' gki/common/build.config.gki
 
-      - name: Inject Kernel Configs
+      - name: Inject All Kernel Configs
         working-directory: gki/common
         run: |
           echo "⚙️ Menambahkan konfigurasi kernel"
           DEFCONFIG="arch/arm64/configs/gki_defconfig"
+          
+          HOOK_METHOD="${{ github.event.inputs.hook_method }}"
+          
           cat >> $DEFCONFIG <<EOF
           # Config - Tambahan untuk Performa Game
           # ===============================================
+          # Konfigurasi KSU NEXT
+          # Add KSU configuration settings
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          CONFIG_KSU_MANUAL_HOOK=n
-          CONFIG_KSU_KPROBES_HOOK=y
+          CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_HAS_MANUAL_HOOK=y
+          EOF
+          
+          if [ "$HOOK_METHOD" = "susfs" ]; then
+            cat >> $DEFCONFIG <<EOF
+          # SUSFS Hook Method
+          CONFIG_KSU_SYSCALL_HOOK=n
+          CONFIG_KSU_KPROBES_HOOK=n
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
@@ -161,6 +194,18 @@ jobs:
           CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
           CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
           CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          EOF
+          else
+            cat >> $DEFCONFIG <<EOF
+          # Kprobes Hook Method
+          CONFIG_KSU_SYSCALL_HOOK=y
+          CONFIG_KSU_KPROBES_HOOK=y
+          # Disable SUSFS for kprobes method
+          CONFIG_KSU_SUSFS=n
+          EOF
+          fi
+          
+          cat >> $DEFCONFIG <<EOF
           # Add additional tmpfs config setting
           CONFIG_TMPFS_XATTR=y
           CONFIG_TMPFS_POSIX_ACL=y
@@ -188,6 +233,16 @@ jobs:
           CONFIG_ZRAM_WRITEBACK=y
           EOF
 
+      - name: Apply Manual Hook Patch
+        working-directory: gki
+        run: |
+          echo "Applying cleaned manual hook v1.6 patch..."
+          curl -s https://raw.githubusercontent.com/Kingfinik98/gki-builder/refs/heads/6.x/kernel-patches/hooks/manual-hook-v1.6.patch \
+            | sed 's/\r$//' \
+            | awk '{print} END{print ""}' \
+            | patch -p1 -d common
+          echo "✅ Manual hook v1.6 patch applied successfully"
+
       - name: Set version
         working-directory: gki/common
         run: |
@@ -195,13 +250,23 @@ jobs:
           chmod +x scripts/setlocalversion
           
           KERNEL_NAME="${{ github.event.inputs.kernel_name }}"
+          HOOK_METHOD="${{ github.event.inputs.hook_method }}"
 
           if [ -n "$KERNEL_NAME" ]; then
-             echo "Setting custom kernel name: $KERNEL_NAME"
-             if grep -q '^EXTRAVERSION *=' Makefile; then
-               sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME/" Makefile
+             if [ "$HOOK_METHOD" = "susfs" ]; then
+               echo "Setting custom kernel name: $KERNEL_NAME-SUSFS"
+               if grep -q '^EXTRAVERSION *=' Makefile; then
+                 sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME-SUSFS/" Makefile
+               else
+                 echo "EXTRAVERSION = -$KERNEL_NAME-SUSFS" >> Makefile
+               fi
              else
-               echo "EXTRAVERSION = -$KERNEL_NAME" >> Makefile
+               echo "Setting custom kernel name: $KERNEL_NAME-KPROBES"
+               if grep -q '^EXTRAVERSION *=' Makefile; then
+                 sed -i "s/^EXTRAVERSION *=.*/EXTRAVERSION = -$KERNEL_NAME-KPROBES/" Makefile
+               else
+                 echo "EXTRAVERSION = -$KERNEL_NAME-KPROBES" >> Makefile
+               fi
              fi
           else
              echo "Kernel name input is empty. Skipping custom name (Using Default)."
@@ -246,7 +311,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: BoltX-Kernel-Image
+          name: KSUN-Kernel-Image
           path: gki/out/android12-5.10/common/arch/arm64/boot/Image
           if-no-files-found: warn
 
