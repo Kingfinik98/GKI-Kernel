@@ -1,4 +1,4 @@
-# LEGACY3 KSUN
+# LEGACY3 KSUN FIXED SUSFS
 
 on:
   workflow_dispatch:
