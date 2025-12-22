@@ -94,7 +94,7 @@ jobs:
           echo "🚀 Applying GPU Overclock to 1050 MHz for Xiaomi Marble"
           DTSI_FILE="arch/arm64/boot/dts/qcom/sdm845.dtsi"
 
-          # Find the line number of the closing curly bracket of the last OPP entry.
+          # Find the line number of the closing curly bracket of the last OPP entry
           LAST_OPP_LINE=$(grep -n "opp-[0-9]*000000 {" "$DTSI_FILE" | tail -1 | cut -d: -f1)
           CLOSING_BRACE_LINE=$(tail -n +$((LAST_OPP_LINE + 1)) "$DTSI_FILE" | grep -n "^[[:space:]]*};" | head -1 | cut -d: -f1)
           TARGET_LINE=$((LAST_OPP_LINE + CLOSING_BRACE_LINE))
@@ -102,18 +102,17 @@ jobs:
           # Insert new OPP entry
           sed -i "${TARGET_LINE}a\\
 \\
-        opp-1050000000 {\\
-            opp-hz = /bits/ 64 <1050000000>;\\
-            opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;\\
-            opp-peak-kBps = <10752000>;\\
-        };
+\t\t\topp-1050000000 {\\
+\t\t\t\topp-hz = /bits/ 64 <1050000000>;\\
+\t\t\t\topp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;\\
+\t\t\t\topp-peak-kBps = <10752000>;\\
+\t\t};
           " "$DTSI_FILE"
 
           echo "✅ GPU Overclock to 1050 MHz patch applied to $DTSI_FILE"
       # =================================================================
       # END OF PERFORMANCE PATCHES SECTION
       # =================================================================
-
 
       - name: Tweak build config
         run: |
@@ -171,7 +170,7 @@ jobs:
         run: |
           echo "Applying requested cherry-picks..."
           
-          # Apply any necessary fixes for the new kernel source
+          # Apply any necessary fixes for new kernel source
           echo "Applying fixes for Kingfinik98 kernel source..."
 
       - name: Fix Stack Protector
