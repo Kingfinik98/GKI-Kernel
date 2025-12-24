@@ -22,7 +22,7 @@ on:
         default: 'susfs'
         options:
           - 'susfs'
-          - 'kprobes'
+          - 'manual-hook'
 
 jobs:
   build:
