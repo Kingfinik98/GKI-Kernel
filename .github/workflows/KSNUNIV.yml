@@ -103,21 +103,38 @@ jobs:
         if: github.event.inputs.performance_patch == 'MediaTek'
         working-directory: gki/common
         run: |
-          echo "🚀 Applying mediatek-cpufreq-hw performance patch"
-
-          TARGET="drivers/cpufreq/mediatek-cpufreq-hw.c"
+          echo "🚀 Adding mediatek-cpufreq-hw driver for performance"
+          TARGET_DIR="drivers/cpufreq"
+          TARGET_FILE="mediatek-cpufreq-hw.c"
           SRC_URL="https://raw.githubusercontent.com/torvalds/linux/refs/heads/master/drivers/cpufreq/mediatek-cpufreq-hw.c"
+          
+          # Ensure the target directory exists
+          mkdir -p "$TARGET_DIR"
+          
+          # Download the file
+          curl -L "$SRC_URL" -o "/tmp/$TARGET_FILE"
+          
+          # Copy it to the target directory
+          cp "/tmp/$TARGET_FILE" "$TARGET_DIR/$TARGET_FILE"
+          
+          echo "✅ MediaTek CPUFreq HW driver added to source."
 
-          if [ ! -f "$TARGET" ]; then
-            echo "❌ Target file not found: $TARGET"
-            exit 1
+      - name: Add MediaTek Driver to Build
+        if: github.event.inputs.performance_patch == 'MediaTek'
+        working-directory: gki/common
+        run: |
+          echo "🛠️ Adding MediaTek driver to the build system..."
+          
+          # Add the driver to the Makefile to ensure it's compiled
+          MAKEFILE="drivers/cpufreq/Makefile"
+          if ! grep -q "mediatek-cpufreq-hw.o" "$MAKEFILE"; then
+            echo "obj-y += mediatek-cpufreq-hw.o" >> "$MAKEFILE"
+            echo "✅ Added mediatek-cpufreq-hw.o to drivers/cpufreq/Makefile"
+          else
+            echo "mediatek-cpufreq-hw.o already in Makefile."
           fi
-
-          curl -L "$SRC_URL" -o /tmp/mediatek-cpufreq-hw.c
-          grep -q "mediatek_cpufreq_hw" /tmp/mediatek-cpufreq-hw.c || exit 1
-          cp /tmp/mediatek-cpufreq-hw.c "$TARGET"
-
-          echo "✅ MediaTek CPUFreq HW performance patch applied"
+          
+          echo "✅ MediaTek driver build integration complete."
       # =================================================================
       # AKHIR: LANGKAH PATCH PERFORMA
       # =================================================================
