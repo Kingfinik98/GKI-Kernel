@@ -24,7 +24,7 @@ on:
           - 'susfs'
           - 'kprobes'
       performance_patch:
-        description: 'Select Performance Patch'
+        description: 'Select Device SoC for Performance Tuning'
         required: true
         type: choice
         default: 'Snapdragon'
@@ -77,13 +77,14 @@ jobs:
           git checkout -b update-master kingfinik98/master
 
       # =================================================================
-      # AWAL: LANGKAH PATCH PERFORMA (DI TEMPATKAN DI SINI)
+      # AWAL: LANGKAH PATCH PERFORMA (TERPISAH)
       # =================================================================
       - name: Apply Snapdragon Performance Patch
         if: github.event.inputs.performance_patch == 'Snapdragon'
         working-directory: gki/common
         run: |
-          echo "🚀 Applying qcom-cpufreq-hw performance patch (Xiaomi Marble)"
+          echo "🚀 [Snapdragon] Applying qcom-cpufreq-hw performance patch (Xiaomi Marble)"
+          echo "INFO: MediaTek tuning (HZ=500) will be SKIPPED."
 
           TARGET="drivers/cpufreq/qcom-cpufreq-hw.c"
           SRC_URL="https://raw.githubusercontent.com/Pzqqt/android_kernel_xiaomi_marble/refs/heads/melt-rebase/drivers/cpufreq/qcom-cpufreq-hw.c"
@@ -97,44 +98,15 @@ jobs:
           grep -q "qcom_cpufreq_hw" /tmp/qcom-cpufreq-hw.c || exit 1
           cp /tmp/qcom-cpufreq-hw.c "$TARGET"
 
-          echo "✅ Qualcomm CPUFreq HW performance patch applied"
+          echo "✅ [Snapdragon] Qualcomm CPUFreq HW performance patch applied."
 
-      - name: Apply MediaTek Performance Patch
+      - name: Apply MediaTek Performance Tuning
         if: github.event.inputs.performance_patch == 'MediaTek'
         working-directory: gki/common
         run: |
-          echo "🚀 Adding mediatek-cpufreq-hw driver for performance"
-          TARGET_DIR="drivers/cpufreq"
-          TARGET_FILE="mediatek-cpufreq-hw.c"
-          SRC_URL="https://raw.githubusercontent.com/torvalds/linux/refs/heads/master/drivers/cpufreq/mediatek-cpufreq-hw.c"
-          
-          # Ensure the target directory exists
-          mkdir -p "$TARGET_DIR"
-          
-          # Download the file
-          curl -L "$SRC_URL" -o "/tmp/$TARGET_FILE"
-          
-          # Copy it to the target directory
-          cp "/tmp/$TARGET_FILE" "$TARGET_DIR/$TARGET_FILE"
-          
-          echo "✅ MediaTek CPUFreq HW driver added to source."
-
-      - name: Add MediaTek Driver to Build
-        if: github.event.inputs.performance_patch == 'MediaTek'
-        working-directory: gki/common
-        run: |
-          echo "🛠️ Adding MediaTek driver to the build system..."
-          
-          # Add the driver to the Makefile to ensure it's compiled
-          MAKEFILE="drivers/cpufreq/Makefile"
-          if ! grep -q "mediatek-cpufreq-hw.o" "$MAKEFILE"; then
-            echo "obj-y += mediatek-cpufreq-hw.o" >> "$MAKEFILE"
-            echo "✅ Added mediatek-cpufreq-hw.o to drivers/cpufreq/Makefile"
-          else
-            echo "mediatek-cpufreq-hw.o already in Makefile."
-          fi
-          
-          echo "✅ MediaTek driver build integration complete."
+          echo "🚀 [MediaTek] Applying performance tuning via defconfig (HZ=500)."
+          echo "INFO: Snapdragon patch will be SKIPPED."
+          echo "✅ [MediaTek] Tuning will be applied in the 'Inject All Kernel Configs' step."
       # =================================================================
       # AKHIR: LANGKAH PATCH PERFORMA
       # =================================================================
@@ -229,6 +201,7 @@ jobs:
           DEFCONFIG="arch/arm64/configs/gki_defconfig"
           
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
+          PERFORMANCE_PATCH="${{ github.event.inputs.performance_patch }}"
           
           # Base KSU Config
           cat >> $DEFCONFIG <<EOF
@@ -276,6 +249,17 @@ jobs:
           CONFIG_KSU_MANUAL_HOOK=n
           CONFIG_KSU_HAS_MANUAL_HOOK=n
           EOF
+          fi
+
+          if [ "$PERFORMANCE_PATCH" = "MediaTek" ]; then
+            cat >> $DEFCONFIG <<EOF
+          # --- MediaTek Performance Tuning ---
+          # Set HZ to 500 for improved responsiveness
+          CONFIG_HZ=500
+          EOF
+            echo "✅ [MediaTek] Applied HZ=500 config."
+          else
+            echo "INFO: [Snapdragon] Skipping HZ=500 config."
           fi
           
           cat >> $DEFCONFIG <<EOF
