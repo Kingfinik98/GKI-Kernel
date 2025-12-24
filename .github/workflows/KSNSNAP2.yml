@@ -22,7 +22,7 @@ on:
         default: 'susfs'
         options:
           - 'susfs'
-          - 'manual-hook'
+          - 'kprobes'
 
 jobs:
   build:
@@ -124,23 +124,10 @@ jobs:
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
           
           if [ "$HOOK_METHOD" = "susfs" ]; then
-            echo "➡️ Cloning susfs4ksu (versi baru)"
-            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
-            echo "✅ SUSFS berhasil diclone"
-            echo "🩹 Patching susfs4ksu"
-            susfs=sus/kernel_patches
-            cp -r $susfs/fs .
-            cp -r $susfs/include .
-            cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
-            patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
-            
-            # Fix for kernel 5.10: Add stat.h include to susfs.h
-            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue (using stat.h)"
-            sed -i '1i#include <linux/stat.h>' include/linux/susfs.h
-            
-            echo "✅ SUSFS patched"
+            echo "➡️ Menggunakan metode SUSFS dengan Manual Hook"
+            echo "✅ SUSFS setup selesai"
           else
-            echo "➡️ Menggunakan kprobes biasa (Manual Hook akan diterapkan pada step berikutnya)"
+            echo "➡️ Menggunakan metode Kprobes Hook"
             echo "✅ Kprobes setup selesai"
           fi
 
@@ -184,24 +171,19 @@ jobs:
           
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
           
+          # Base KSU Config
           cat >> $DEFCONFIG <<EOF
-          # Config - Tambahan untuk Performa Game
           # ===============================================
-          # Konfigurasi KSU NEXT
-          # Add KSU configuration settings
+          # Konfigurasi KSU NEXT (Base)
           CONFIG_KSU=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          CONFIG_KSU_MANUAL_HOOK=y
-          CONFIG_KSU_HAS_MANUAL_HOOK=y
+          CONFIG_KSU_SYSCALL_HOOK=n
           EOF
           
           if [ "$HOOK_METHOD" = "susfs" ]; then
             cat >> $DEFCONFIG <<EOF
-          # SUSFS Hook Method
-          CONFIG_KSU_SYSCALL_HOOK=n
-          CONFIG_KSU_KPROBES_HOOK=n
-          # Add SUSFS configuration settings
+          # --- SUSFS + Manual Hook Method ---
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
           CONFIG_KSU_SUSFS_SUS_PATH=y
@@ -219,14 +201,19 @@ jobs:
           CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
           CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
           CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          # Manual Hook is required for SUSFS
+          CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_HAS_MANUAL_HOOK=y
+          CONFIG_KSU_KPROBES_HOOK=n
           EOF
           else
             cat >> $DEFCONFIG <<EOF
-          # Kprobes Hook Method (using Manual & Reboot Hooks)
-          CONFIG_KSU_SYSCALL_HOOK=n
-          CONFIG_KSU_KPROBES_HOOK=n
-          # Disable SUSFS for kprobes method
+          # --- Kprobes Hook Method ---
+          # Enable Kprobes Hook
+          CONFIG_KSU_KPROBES_HOOK=y
+          # Disable SUSFS and Manual Hook for Kprobes
           CONFIG_KSU_SUSFS=n
+          CONFIG_KSU_MANUAL_HOOK=n
           EOF
           fi
           
@@ -258,17 +245,17 @@ jobs:
           EOF
 
       # =================================================================
-      # AWAL: LANGKAH TAMBAHAN MANUAL & REBOOT HOOK
+      # AWAL: LANGKAH MANUAL & REBOOT HOOK (HANYA UNTUK SUSFS)
       # =================================================================
-      - name: Apply KSU-Next Manual Hooks
+      - name: Apply SUSFS Manual & Reboot Hooks
         working-directory: gki/common
         run: |
           echo "🪝 Checking for hook method to apply specific patches..."
           
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
           
-          if [ "$HOOK_METHOD" = "kprobes" ]; then
-            echo "➡️ Hook method is 'kprobes'. Applying Manual Hook (v1.4) and Reboot Hook..."
+          if [ "$HOOK_METHOD" = "susfs" ]; then
+            echo "➡️ Hook method is 'susfs'. Applying Manual Hook (v1.4) and Reboot Hook..."
             
             # Download patches
             echo "📥 Downloading patches..."
@@ -282,12 +269,12 @@ jobs:
             echo "🔄 Applying reboot-hook.patch..."
             patch -p1 < /tmp/reboot-hook.patch || { echo "❌ Failed to apply reboot-hook.patch"; exit 1; }
             
-            echo "✅ Manual and Reboot hooks applied successfully for Kprobes method."
+            echo "✅ Manual and Reboot hooks applied successfully for SUSFS method."
           else
-            echo "➡️ Hook method is 'susfs'. Skipping manual and reboot hook patches."
+            echo "➡️ Hook method is 'kprobes'. Skipping manual and reboot hook patches."
           fi
       # =================================================================
-      # AKHIR: LANGKAH TAMBAHAN MANUAL & REBOOT HOOK
+      # AKHIR: LANGKAH MANUAL & REBOOT HOOK
       # =================================================================
 
       - name: Set version
