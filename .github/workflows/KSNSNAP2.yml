@@ -1,4 +1,4 @@
-# KSUN2 Preshoot Snapdragon mode
+# KSUN Preshoot Snapdragon mode
 
 on:
   workflow_dispatch:
@@ -124,8 +124,21 @@ jobs:
           HOOK_METHOD="${{ github.event.inputs.hook_method }}"
           
           if [ "$HOOK_METHOD" = "susfs" ]; then
-            echo "➡️ Menggunakan metode SUSFS dengan Manual Hook"
-            echo "✅ SUSFS setup selesai"
+            echo "➡️ Cloning susfs4ksu (versi baru)"
+            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 sus
+            echo "✅ SUSFS berhasil diclone"
+            echo "🩹 Patching susfs4ksu"
+            susfs=sus/kernel_patches
+            cp -r $susfs/fs .
+            cp -r $susfs/include .
+            cp -r $susfs/50_add_susfs_in_gki-android12-5.10.patch .
+            patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch
+            
+            # Fix for kernel 5.10: Add stat.h include to susfs.h
+            echo "🩹 Applying fix for kernel 5.10 kstat visibility issue (using stat.h)"
+            sed -i '1i#include <linux/stat.h>' include/linux/susfs.h
+            
+            echo "✅ SUSFS patched"
           else
             echo "➡️ Menggunakan metode Kprobes Hook"
             echo "✅ Kprobes setup selesai"
@@ -204,6 +217,7 @@ jobs:
           # Manual Hook is required for SUSFS
           CONFIG_KSU_MANUAL_HOOK=y
           CONFIG_KSU_HAS_MANUAL_HOOK=y
+          # Disable other hooks
           CONFIG_KSU_KPROBES_HOOK=n
           EOF
           else
@@ -214,6 +228,7 @@ jobs:
           # Disable SUSFS and Manual Hook for Kprobes
           CONFIG_KSU_SUSFS=n
           CONFIG_KSU_MANUAL_HOOK=n
+          CONFIG_KSU_HAS_MANUAL_HOOK=n
           EOF
           fi
           
