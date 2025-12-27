@@ -1,4 +1,4 @@
-# LEGACY2 KSUN
+#KSN-KPROBES
 
 on:
   workflow_dispatch:
@@ -80,9 +80,9 @@ jobs:
       - name: Setup KernelSU-Next & SUSFS
         working-directory: gki/common
         run: |
-          echo "🧩 Merge dan tambahkan KernelSU-Next dan SUSFS"
+          echo "🧩 Merge dan tambahkan KernelSU-Next KPROBES"
           echo "➡️ Menambahkan KernelSU-Next"
-          curl -LSs "https://raw.githubusercontent.com/linastorvaldz/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
           echo "✅ KernelSU-Next added"
           
       - name: Apply common fixes
@@ -131,12 +131,12 @@ jobs:
           # Konfigurasi KSU NEXT & SUSFS
           # Add KSU configuration settings
           CONFIG_KSU=y
+          CONFIG_KPROBES=y
+          CONFIG_KPROBE_EVENTS=y
+          CONFIG_KSU_KPROBE_HOOKS=y
           CONFIG_KPM=n
           CONFIG_KSU_SUSFS_SUS_SU=n
-          CONFIG_KSU_MANUAL_HOOK=y
-          CONFIG_KSU_HAS_MANUAL_HOOK=y
-          CONFIG_KSU_SYSCALL_HOOK=y
-          CONFIG_KSU_KPROBES_HOOK=n
+          CONFIG_KSU_MANUAL_HOOK=n
           # Add SUSFS configuration settings
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
